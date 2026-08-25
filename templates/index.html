@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบจัดการสต๊อกสินค้า</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <i class="fas fa-boxes-stacked"></i>
+      <span>สต๊อกสินค้า</span>
+    </div>
+  </div>
+
+  <!-- Sheet Selector -->
+  <div class="sidebar-section">
+    <div class="section-label">แผ่นงาน</div>
+    <select id="sheetSelect" class="sheet-select">
+      <option value="">กำลังโหลด...</option>
+    </select>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num" id="statTotal">-</div>
+      <div class="stat-label">รายการทั้งหมด</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-num" id="statLow">-</div>
+      <div class="stat-label">สต๊อกต่ำ</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-num" id="statOut">-</div>
+      <div class="stat-label">หมดสต๊อก</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-num" id="statExp">-</div>
+      <div class="stat-label">ใกล้หมดอายุ</div>
+    </div>
+  </div>
+
+  <!-- Category Filter -->
+  <div class="sidebar-section">
+    <div class="section-label">หมวดหมู่</div>
+    <div id="categoryTree">
+      <div class="cat-item active" data-main="" data-sub="">
+        <i class="fas fa-th-large"></i> ทั้งหมด
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="btn-icon" id="sidebarToggle" title="เมนู">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h1 class="page-title">ระบบจัดการสต๊อกสินค้า ปาร์คอิน</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="ค้นหาสินค้า, บาร์โค้ด, Brand..." />
+      </div>
+      <button class="btn btn-primary" id="addBtn">
+        <i class="fas fa-plus"></i> เพิ่มสินค้า
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="all">ทั้งหมด</button>
+      <button class="filter-tab" data-filter="low">สต๊อกต่ำ ≤ 10</button>
+      <button class="filter-tab" data-filter="out">หมดสต๊อก</button>
+      <button class="filter-tab" data-filter="expiring">ใกล้หมดอายุ</button>
+    </div>
+    <div class="sort-wrap">
+      <label>เรียงตาม</label>
+      <select id="sortSelect">
+        <option value="index">ลำดับ</option>
+        <option value="name">ชื่อสินค้า</option>
+        <option value="current_stock">สต๊อกคงเหลือ</option>
+        <option value="expiry">วันหมดอายุ</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table id="stockTable">
+      <thead>
+        <tr>
+          <th style="width:50px">ลำดับ</th>
+          <th>ชื่อสินค้า</th>
+          <th>บาร์โค้ด</th>
+          <th>ประเภทหลัก</th>
+          <th>ประเภทย่อย</th>
+          <th>Brand</th>
+          <th>Lot</th>
+          <th>วันหมดอายุ</th>
+          <th style="width:90px">สต๊อกตั้งต้น</th>
+          <th style="width:110px">สต๊อกคงเหลือ</th>
+          <th style="width:100px">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="11" class="loading-row"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-footer">
+    <span id="rowCount">0 รายการ</span>
+  </div>
+</main>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">เพิ่มสินค้าใหม่</h2>
+      <button class="btn-icon modal-close" id="modalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="itemForm">
+        <input type="hidden" id="fRow" />
+        <input type="hidden" id="fSheet" />
+
+        <div class="form-grid">
+          <div class="form-group col-2">
+            <label>ชื่อสินค้า <span class="req">*</span></label>
+            <input type="text" id="fName" required placeholder="ระบุชื่อสินค้า" />
+          </div>
+
+          <div class="form-group">
+            <label>ประเภทสินค้าหลัก</label>
+            <input type="text" id="fMainCat" list="mainCatList" placeholder="เช่น Liquid" />
+            <datalist id="mainCatList"></datalist>
+          </div>
+
+          <div class="form-group">
+            <label>ประเภทสินค้าย่อย</label>
+            <input type="text" id="fSubCat" list="subCatList" placeholder="เช่น Syrup" />
+            <datalist id="subCatList"></datalist>
+          </div>
+
+          <div class="form-group">
+            <label>บาร์โค้ดสินค้า</label>
+            <input type="text" id="fBarcode" placeholder="บาร์โค้ด" />
+          </div>
+
+          <div class="form-group">
+            <label>Brand</label>
+            <input type="text" id="fBrand" placeholder="Brand" />
+          </div>
+
+          <div class="form-group">
+            <label>Lab</label>
+            <input type="text" id="fLab" placeholder="Lab" />
+          </div>
+
+          <div class="form-group">
+            <label>Lot</label>
+            <input type="text" id="fLot" placeholder="Lot number" />
+          </div>
+
+          <div class="form-group">
+            <label>วันหมดอายุ</label>
+            <input type="date" id="fExpiry" />
+          </div>
+
+          <div class="form-group">
+            <label>สต๊อกตั้งต้น</label>
+            <input type="number" id="fInitialStock" min="0" value="0" />
+          </div>
+
+          <div class="form-group">
+            <label>สต๊อกคงเหลือ</label>
+            <input type="number" id="fCurrentStock" min="0" value="0" />
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="cancelBtn">ยกเลิก</button>
+      <button class="btn btn-primary" id="saveBtn">
+        <i class="fas fa-save"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal confirm-modal">
+    <div class="confirm-icon"><i class="fas fa-trash-alt"></i></div>
+    <h3>ยืนยันการลบ</h3>
+    <p id="confirmText">คุณต้องการลบสินค้านี้ใช่หรือไม่?</p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirmCancel">ยกเลิก</button>
+      <button class="btn btn-danger" id="confirmOk">
+        <i class="fas fa-trash-alt"></i> ลบ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
