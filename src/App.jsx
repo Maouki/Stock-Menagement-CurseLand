@@ -8,6 +8,10 @@ import ProductTable from './components/ProductTable'
 import ProductModal from './components/ProductModal'
 import DeleteModal from './components/DeleteModal'
 import ShipmentModal from './components/ShipmentModal'
+import StockOutModal from './components/StockOutModal'
+import HistoryModal from './components/HistoryModal'
+import FinanceModal from './components/FinanceModal'
+import DashboardModal from './components/DashboardModal'
 import Toast from './components/Toast'
 import AlertBanner from './components/AlertBanner'
 import SetupGuide from './components/SetupGuide'
@@ -180,10 +184,7 @@ function MainApp({ currentUser, onLogout }) {
     if (!product) return
 
     const { error: shipErr } = await supabase.from('shipments').insert({
-      product_id: productId,
-      quantity,
-      shipment_date: date,
-      notes,
+      product_id: productId, quantity, shipment_date: date, notes, type: 'in',
     })
     if (shipErr) { showToast(shipErr.message, 'error'); return }
 
@@ -194,6 +195,25 @@ function MainApp({ currentUser, onLogout }) {
     if (stockErr) { showToast(stockErr.message, 'error'); return }
 
     showToast(`รับเข้า ${quantity} หน่วยเรียบร้อย`, 'success')
+    setModal(null)
+  }, [products, showToast])
+
+  const handleStockOut = useCallback(async ({ productId, quantity, date, notes }) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+
+    const { error: shipErr } = await supabase.from('shipments').insert({
+      product_id: productId, quantity, shipment_date: date, notes, type: 'out',
+    })
+    if (shipErr) { showToast(shipErr.message, 'error'); return }
+
+    const { error: stockErr } = await supabase
+      .from('products')
+      .update({ current_stock: Math.max(0, product.current_stock - quantity) })
+      .eq('id', productId)
+    if (stockErr) { showToast(stockErr.message, 'error'); return }
+
+    showToast(`จ่ายออก ${quantity} หน่วยเรียบร้อย`, 'success')
     setModal(null)
   }, [products, showToast])
 
@@ -224,9 +244,6 @@ function MainApp({ currentUser, onLogout }) {
 
       <Sidebar
         open={sidebarOpen}
-        groups={groups}
-        activeGroup={activeGroup}
-        onGroupChange={handleGroupChange}
         categories={categories}
         activeMain={activeMain}
         activeSub={activeSub}
@@ -241,6 +258,8 @@ function MainApp({ currentUser, onLogout }) {
           onSearch={setSearchQuery}
           currentUser={currentUser}
           onLogout={onLogout}
+          onDashboard={() => setModal({ type: 'dashboard' })}
+          onFinance={() => setModal({ type: 'finance' })}
           onAdd={() => setModal({
             type: 'add',
             product: {
@@ -248,7 +267,7 @@ function MainApp({ currentUser, onLogout }) {
               main_category: activeMain,
               sub_category: activeSub,
               barcode: '', brand: '', lab: '', lot: '', expiry: '',
-              initial_stock: 0, current_stock: 0, min_stock: 10,
+              current_stock: 0, min_stock: 10,
             }
           })}
         />
@@ -275,6 +294,8 @@ function MainApp({ currentUser, onLogout }) {
           onEdit={p => setModal({ type: 'edit', product: p })}
           onDelete={p => setModal({ type: 'delete', product: p })}
           onShipment={p => setModal({ type: 'shipment', product: p })}
+          onStockOut={p => setModal({ type: 'stockout', product: p })}
+          onHistory={p => setModal({ type: 'history', product: p })}
         />
 
         <div className="px-6 py-2 text-sm text-slate-500 flex-shrink-0 border-t border-slate-200 bg-white">
@@ -307,6 +328,29 @@ function MainApp({ currentUser, onLogout }) {
           onSave={handleShipment}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {modal?.type === 'stockout' && (
+        <StockOutModal
+          product={modal.product}
+          onSave={handleStockOut}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === 'history' && (
+        <HistoryModal
+          product={modal.product}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === 'finance' && (
+        <FinanceModal onClose={() => setModal(null)} />
+      )}
+
+      {modal?.type === 'dashboard' && (
+        <DashboardModal onClose={() => setModal(null)} />
       )}
 
       {toast && (

@@ -5,6 +5,7 @@ let activeFilter = 'all';
 let activeMain = '';
 let activeSub = '';
 let deleteTarget = null;
+let editingSheet = null;
 
 /* ─── DOM refs ───────────────────────────────────────────────────────────── */
 const tableBody = document.getElementById('tableBody');
@@ -249,7 +250,7 @@ function closeModal() {
   modalOverlay.classList.remove('active');
   document.getElementById('itemForm').reset();
   document.getElementById('fRow').value = '';
-  document.getElementById('fSheet').value = '';
+  editingSheet = null;
 }
 
 function openAdd() {
@@ -264,7 +265,7 @@ function openEdit(row, sheet) {
   if (!item) return;
   document.getElementById('modalTitle').textContent = 'แก้ไขสินค้า';
   document.getElementById('fRow').value = row;
-  document.getElementById('fSheet').value = sheet;
+  editingSheet = sheet;
   document.getElementById('fName').value = item.name;
   document.getElementById('fBarcode').value = item.barcode !== 'None' ? item.barcode : '';
   document.getElementById('fMainCat').value = item.main_category;
@@ -288,7 +289,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!name) { showToast('กรุณาระบุชื่อสินค้า', 'error'); return; }
 
   const row = parseInt(document.getElementById('fRow').value) || 0;
-  const sheet = document.getElementById('fSheet').value;
+  const sheet = editingSheet || '';
 
   const payload = {
     name,
