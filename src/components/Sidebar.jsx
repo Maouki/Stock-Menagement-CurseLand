@@ -1,8 +1,7 @@
 import { Boxes, Folder, Tag, LayoutGrid } from 'lucide-react'
 
 export default function Sidebar({
-  open, groups, activeGroup, onGroupChange,
-  categories, activeMain, activeSub, onCategoryChange, stats,
+  open, categories, activeMain, activeSub, onCategoryChange, stats,
 }) {
   return (
     <aside className={`
@@ -18,24 +17,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {groups.length > 0 && (
-        <div className="px-4 pt-4 pb-3 flex-shrink-0">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-indigo-400 mb-2">กลุ่มสินค้า</div>
-          <select
-            value={activeGroup || ''}
-            onChange={e => onGroupChange(e.target.value || null)}
-            className="w-full rounded-lg px-3 py-2 text-sm outline-none cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#e0e7ff' }}
-          >
-            <option value="" style={{ background: '#1e1b4b' }}>ทั้งหมด</option>
-            {groups.map(g => (
-              <option key={g} value={g} style={{ background: '#1e1b4b' }}>{g}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2 px-4 pb-4 flex-shrink-0">
+      <div className="grid grid-cols-2 gap-2 px-4 pt-4 pb-4 flex-shrink-0">
         <StatCard label="รายการทั้งหมด" value={stats.total} />
         <StatCard label="สต๊อกต่ำ" value={stats.low_stock} color="text-yellow-300" />
         <StatCard label="หมดสต๊อก" value={stats.out_of_stock} color="text-red-400" />

@@ -30,8 +30,8 @@ export default function ShipmentModal({ product, onSave, onClose }) {
   const newStock = product.current_stock + quantity
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md animate-fade-in">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <Truck className="w-5 h-5 text-sky-600" />

@@ -10,7 +10,6 @@ const EMPTY_FORM = {
   lab: '',
   lot: '',
   expiry: '',
-  initial_stock: 0,
   current_stock: 0,
   min_stock: 10,
   group_name: 'รายการสินค้า',
@@ -48,10 +47,10 @@ export default function ProductModal({ product, isEdit, categories, groups, onSa
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 bg-black/50 z-[100] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-fade-in">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[92vh] flex flex-col animate-fade-in">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-800">
             {isEdit ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
@@ -141,10 +140,6 @@ export default function ProductModal({ product, isEdit, categories, groups, onSa
 
               <Field label="วันหมดอายุ">
                 <input type="date" value={form.expiry || ''} onChange={set('expiry')} className={inputCls} />
-              </Field>
-
-              <Field label="สต๊อกตั้งต้น">
-                <input type="number" value={form.initial_stock} onChange={set('initial_stock')} min="0" className={inputCls} />
               </Field>
 
               <Field label="สต๊อกคงเหลือ">

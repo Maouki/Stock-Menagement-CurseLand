@@ -1,6 +1,6 @@
-import { Menu, Search, Plus, LogOut, User } from 'lucide-react'
+import { Menu, Search, Plus, LogOut, User, Wallet, BarChart2 } from 'lucide-react'
 
-export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, currentUser, onLogout }) {
+export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, onFinance, onDashboard, currentUser, onLogout }) {
   return (
     <div className="bg-white border-b border-slate-200 flex-shrink-0 shadow-sm">
       <div className="h-16 flex items-center justify-between px-4 gap-3">
@@ -31,6 +31,22 @@ export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, 
               className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm w-48 md:w-64 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
             />
           </div>
+
+          <button
+            onClick={onDashboard}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-semibold transition-colors border border-indigo-200"
+          >
+            <BarChart2 className="w-4 h-4" />
+            <span className="hidden sm:inline">แดชบอร์ด</span>
+          </button>
+
+          <button
+            onClick={onFinance}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-sm font-semibold transition-colors border border-emerald-200"
+          >
+            <Wallet className="w-4 h-4" />
+            <span className="hidden sm:inline">รายรับ-จ่าย</span>
+          </button>
 
           <button
             onClick={onAdd}
