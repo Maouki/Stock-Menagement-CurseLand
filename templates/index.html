@@ -20,14 +20,6 @@
     </div>
   </div>
 
-  <!-- Sheet Selector -->
-  <div class="sidebar-section">
-    <div class="section-label">แผ่นงาน</div>
-    <select id="sheetSelect" class="sheet-select">
-      <option value="">กำลังโหลด...</option>
-    </select>
-  </div>
-
   <!-- Stats -->
   <div class="stats-grid">
     <div class="stat-card">
@@ -112,13 +104,12 @@
           <th>Brand</th>
           <th>Lot</th>
           <th>วันหมดอายุ</th>
-          <th style="width:90px">สต๊อกตั้งต้น</th>
           <th style="width:110px">สต๊อกคงเหลือ</th>
           <th style="width:100px">จัดการ</th>
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="11" class="loading-row"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</td></tr>
+        <tr><td colspan="10" class="loading-row"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</td></tr>
       </tbody>
     </table>
   </div>
@@ -181,11 +172,6 @@
           <div class="form-group">
             <label>วันหมดอายุ</label>
             <input type="date" id="fExpiry" />
-          </div>
-
-          <div class="form-group">
-            <label>สต๊อกตั้งต้น</label>
-            <input type="number" id="fInitialStock" min="0" value="0" />
           </div>
 
           <div class="form-group">

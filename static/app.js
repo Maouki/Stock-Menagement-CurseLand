@@ -1,8 +1,6 @@
 /* ─── State ──────────────────────────────────────────────────────────────── */
 let allItems = [];
 let allCategories = {};
-let allSheets = [];
-let currentSheet = null;
 let activeFilter = 'all';
 let activeMain = '';
 let activeSub = '';
@@ -11,7 +9,6 @@ let deleteTarget = null;
 /* ─── DOM refs ───────────────────────────────────────────────────────────── */
 const tableBody = document.getElementById('tableBody');
 const searchInput = document.getElementById('searchInput');
-const sheetSelect = document.getElementById('sheetSelect');
 const rowCount = document.getElementById('rowCount');
 const modalOverlay = document.getElementById('modalOverlay');
 const confirmOverlay = document.getElementById('confirmOverlay');
@@ -19,30 +16,14 @@ const toast = document.getElementById('toast');
 
 /* ─── Init ───────────────────────────────────────────────────────────────── */
 async function init() {
-  await loadSheets();
   await loadData();
 }
 
-async function loadSheets() {
-  const res = await fetch('/api/sheets');
-  const { sheets } = await res.json();
-  allSheets = sheets;
-  sheetSelect.innerHTML = sheets.map(s =>
-    `<option value="${s}">${s}</option>`
-  ).join('');
-  currentSheet = sheets[0] || null;
-  sheetSelect.addEventListener('change', () => {
-    currentSheet = sheetSelect.value;
-    loadData();
-  });
-}
-
 async function loadData() {
-  tableBody.innerHTML = `<tr><td colspan="11" class="loading-row"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</td></tr>`;
-  const url = currentSheet ? `/api/items?sheet=${encodeURIComponent(currentSheet)}` : '/api/items';
+  tableBody.innerHTML = `<tr><td colspan="10" class="loading-row"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...</td></tr>`;
   const [dataRes, statsRes] = await Promise.all([
-    fetch(url),
-    fetch(`/api/stats${currentSheet ? '?sheet=' + encodeURIComponent(currentSheet) : ''}`)
+    fetch('/api/items'),
+    fetch('/api/stats')
   ]);
   const data = await dataRes.json();
   const stats = await statsRes.json();
@@ -181,7 +162,7 @@ function renderTable() {
   rowCount.textContent = `${items.length} รายการ`;
 
   if (items.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="11" class="loading-row">
+    tableBody.innerHTML = `<tr><td colspan="10" class="loading-row">
       <i class="fas fa-inbox" style="color:#94a3b8"></i> ไม่พบรายการสินค้า
     </td></tr>`;
     return;
@@ -203,7 +184,6 @@ function renderTable() {
       <td>${item.brand && item.brand !== 'None' ? escHtml(item.brand) : '-'}</td>
       <td style="font-size:13px;color:#64748b">${item.lot && item.lot !== 'None' ? escHtml(item.lot) : '-'}</td>
       <td class="${ec}">${formatDate(item.expiry)}</td>
-      <td style="text-align:center">${item.initial_stock}</td>
       <td style="text-align:center">
         <span class="stock-badge ${sc}">${item.current_stock}</span>
       </td>
@@ -274,7 +254,6 @@ function closeModal() {
 
 function openAdd() {
   document.getElementById('modalTitle').textContent = 'เพิ่มสินค้าใหม่';
-  document.getElementById('fSheet').value = currentSheet || allSheets[0] || '';
   if (activeMain) document.getElementById('fMainCat').value = activeMain;
   if (activeSub) document.getElementById('fSubCat').value = activeSub;
   openModal();
@@ -294,7 +273,6 @@ function openEdit(row, sheet) {
   document.getElementById('fLab').value = item.lab !== 'None' ? item.lab : '';
   document.getElementById('fLot').value = item.lot !== 'None' ? item.lot : '';
   document.getElementById('fExpiry').value = item.expiry || '';
-  document.getElementById('fInitialStock').value = item.initial_stock;
   document.getElementById('fCurrentStock').value = item.current_stock;
   openModal();
 }
@@ -321,7 +299,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     lab: document.getElementById('fLab').value.trim(),
     lot: document.getElementById('fLot').value.trim(),
     expiry: document.getElementById('fExpiry').value,
-    initial_stock: parseInt(document.getElementById('fInitialStock').value) || 0,
     current_stock: parseInt(document.getElementById('fCurrentStock').value) || 0,
   };
 
