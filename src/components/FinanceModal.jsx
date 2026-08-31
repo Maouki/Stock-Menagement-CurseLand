@@ -41,13 +41,12 @@ const INCOME_SOURCES = [
   {
     key: 'grab',
     label: 'Grab',
-    sublabel: 'หักค่าบริการ 30%',
+    sublabel: 'Grab Delivery',
     Icon: Bike,
     bg: 'bg-green-100',
     icon: 'text-green-600',
     border: 'border-green-100 hover:border-green-400 hover:bg-green-50',
     hasImage: false,
-    deduction: 0.30,
   },
 ]
 
@@ -286,24 +285,6 @@ export default function FinanceModal({ onClose }) {
                 />
               </div>
 
-              {/* Grab deduction breakdown */}
-              {editSrc?.deduction && editParsed > 0 && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between text-slate-600">
-                    <span>ยอดรวม</span>
-                    <span className="font-semibold">฿{fmt(editParsed)}</span>
-                  </div>
-                  <div className="flex justify-between text-orange-600">
-                    <span>หักค่าบริการ 30%</span>
-                    <span className="font-semibold">-฿{fmt(editParsed * 0.30)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold pt-1.5 border-t border-orange-200 text-slate-700">
-                    <span>รายรับสุทธิ</span>
-                    <span className="text-emerald-600">฿{fmt(editNet)}</span>
-                  </div>
-                </div>
-              )}
-
               {/* Image (income sources with image) */}
               {(editSrc?.hasImage || editingRecord.image_url) && (
                 <div>
@@ -408,9 +389,6 @@ export default function FinanceModal({ onClose }) {
                         <div className="font-bold text-slate-800 text-[15px]">{s.label}</div>
                         <div className="text-xs text-slate-400 mt-0.5">{s.sublabel}</div>
                       </div>
-                      {s.deduction && (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">หัก 30%</span>
-                      )}
                     </button>
                   ))}
                 </div>
@@ -431,23 +409,6 @@ export default function FinanceModal({ onClose }) {
                       className="w-full border border-slate-200 rounded-xl px-4 py-3 text-2xl font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
-
-                  {selectedSrc?.deduction && parsed > 0 && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 space-y-1.5 text-sm">
-                      <div className="flex justify-between text-slate-600">
-                        <span>ยอดรวม</span>
-                        <span className="font-semibold">฿{fmt(parsed)}</span>
-                      </div>
-                      <div className="flex justify-between text-orange-600">
-                        <span>หักค่าบริการ 30%</span>
-                        <span className="font-semibold">-฿{fmt(parsed * 0.30)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold pt-1.5 border-t border-orange-200 text-slate-700">
-                        <span>รายรับสุทธิ</span>
-                        <span className="text-emerald-600">฿{fmt(net)}</span>
-                      </div>
-                    </div>
-                  )}
 
                   {selectedSrc?.hasImage && (
                     <div>

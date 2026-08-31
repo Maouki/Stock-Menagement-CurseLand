@@ -8,8 +8,15 @@ import { supabase } from '../lib/supabase'
 
 const MONTH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 const MONTH_FULL  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม']
-const WDAY_SHORT  = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'] // Mon → Sun
+const WDAY_SHORT  = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.']
 const SOURCE_LABEL = { boardgame: 'บอร์ดเกม (ชั้น 2)', restaurant: 'ร้านอาหาร (ชั้น 1)', grab: 'Grab', expense: 'รายจ่าย' }
+
+const CHANNELS = [
+  { key: null,         label: 'ทั้งหมด',           color: null },
+  { key: 'restaurant', label: 'ร้านอาหาร (ชั้น 1)', color: 'emerald' },
+  { key: 'grab',       label: 'Grab',               color: 'orange' },
+  { key: 'boardgame',  label: 'บอร์ดเกม (ชั้น 2)',  color: 'violet' },
+]
 
 function fmt(n)     { return Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 0 }) }
 function fmtFull(n) { return Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
@@ -44,6 +51,45 @@ function fmtWeekRange(mondayISO) {
   return `${s.getDate()} ${MONTH_SHORT[s.getMonth()]} – ${e.getDate()} ${MONTH_SHORT[e.getMonth()]} ${ey}`
 }
 
+function computeMonthlyData(recs) {
+  const months = MONTH_SHORT.map(label => ({ label, income: 0, expense: 0, net: 0 }))
+  recs.forEach(r => {
+    const m = parseInt(r.record_date.split('-')[1]) - 1
+    if (r.type === 'income') months[m].income += parseFloat(r.net_amount)
+    else                     months[m].expense += parseFloat(r.amount)
+  })
+  months.forEach(m => { m.net = m.income - m.expense })
+  return months
+}
+
+function computeWeeklyData(recs, weekStart) {
+  const slots = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart + 'T00:00:00')
+    d.setDate(d.getDate() + i)
+    return { date: d.toISOString().split('T')[0], label: `${WDAY_SHORT[i]}${d.getDate()}`, dayIndex: i, income: 0, expense: 0, net: 0 }
+  })
+  recs.forEach(r => {
+    const slot = slots.find(s => s.date === r.record_date)
+    if (!slot) return
+    if (r.type === 'income') slot.income += parseFloat(r.net_amount)
+    else                     slot.expense += parseFloat(r.amount)
+  })
+  slots.forEach(s => { s.net = s.income - s.expense })
+  return slots
+}
+
+function computeDailyData(recs) {
+  const byDay = {}
+  recs.forEach(r => {
+    const d = parseInt(r.record_date.split('-')[2])
+    if (!byDay[d]) byDay[d] = { label: String(d), income: 0, expense: 0, net: 0 }
+    if (r.type === 'income') byDay[d].income += parseFloat(r.net_amount)
+    else                     byDay[d].expense += parseFloat(r.amount)
+  })
+  Object.values(byDay).forEach(d => { d.net = d.income - d.expense })
+  return Object.values(byDay).sort((a, b) => parseInt(a.label) - parseInt(b.label))
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -67,8 +113,18 @@ function ChartTooltip({ active, payload, label }) {
   )
 }
 
-function SummaryCards({ income, expense }) {
+function SummaryCards({ income, expense, channelLabel }) {
   const net = income - expense
+  if (channelLabel) {
+    return (
+      <div className="px-5 py-4 flex-shrink-0">
+        <div className="bg-emerald-50 rounded-2xl p-4 text-center">
+          <div className="text-xs font-semibold text-emerald-500 mb-1">รายรับ — {channelLabel}</div>
+          <div className="text-2xl font-bold text-emerald-700">฿{fmt(income)}</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="grid grid-cols-3 gap-3 px-5 py-4 flex-shrink-0">
       <div className="bg-emerald-50 rounded-2xl p-3 sm:p-4 text-center">
@@ -89,17 +145,19 @@ function SummaryCards({ income, expense }) {
 
 export default function DashboardModal({ onClose }) {
   const now = new Date()
-  const [view,         setView]         = useState('monthly')
-  const [year,         setYear]         = useState(now.getFullYear())
-  const [month,        setMonth]        = useState(now.getMonth())
-  const [weekStart,    setWeekStart]    = useState(() => getMondayISO())
-  const [monthlyData,  setMonthlyData]  = useState([])
-  const [weeklyData,   setWeeklyData]   = useState([])
-  const [weeklyRecs,   setWeeklyRecs]   = useState([])
-  const [dailyData,    setDailyData]    = useState([])
-  const [allRecords,   setAllRecords]   = useState([])
+  const [view,          setView]         = useState('monthly')
+  const [year,          setYear]         = useState(now.getFullYear())
+  const [month,         setMonth]        = useState(now.getMonth())
+  const [weekStart,     setWeekStart]    = useState(() => getMondayISO())
+  const [channelFilter, setChannelFilter] = useState(null)
+
+  // Raw records per view
+  const [monthlyRecs, setMonthlyRecs] = useState([])
+  const [weeklyRecs,  setWeeklyRecs]  = useState([])
+  const [dailyRecs,   setDailyRecs]   = useState([])
+
   const [selectedDay,  setSelectedDay]  = useState(null)
-  const [selectedWDay, setSelectedWDay] = useState(null) // 0-6 Mon-Sun
+  const [selectedWDay, setSelectedWDay] = useState(null)
   const [loading,      setLoading]      = useState(false)
 
   useEffect(() => {
@@ -113,18 +171,10 @@ export default function DashboardModal({ onClose }) {
     setLoading(true)
     const { data } = await supabase
       .from('finance_records')
-      .select('record_date, type, net_amount, amount')
+      .select('record_date, type, net_amount, amount, source')
       .gte('record_date', `${year}-01-01`)
       .lte('record_date', `${year}-12-31`)
-
-    const months = MONTH_SHORT.map(label => ({ label, income: 0, expense: 0, net: 0 }))
-    ;(data || []).forEach(r => {
-      const m = parseInt(r.record_date.split('-')[1]) - 1
-      if (r.type === 'income') months[m].income  += parseFloat(r.net_amount)
-      else                     months[m].expense += parseFloat(r.amount)
-    })
-    months.forEach(m => { m.net = m.income - m.expense })
-    setMonthlyData(months)
+    setMonthlyRecs(data || [])
     setLoading(false)
   }, [year])
 
@@ -139,33 +189,7 @@ export default function DashboardModal({ onClose }) {
       .lte('record_date', weekEnd)
       .order('record_date')
       .order('created_at')
-
-    const records = data || []
-
-    // Build 7-slot array Mon(0)…Sun(6)
-    const slots = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart + 'T00:00:00')
-      d.setDate(d.getDate() + i)
-      return {
-        date:     d.toISOString().split('T')[0],
-        label:    `${WDAY_SHORT[i]}${d.getDate()}`,
-        dayIndex: i,
-        income:   0,
-        expense:  0,
-        net:      0,
-      }
-    })
-
-    records.forEach(r => {
-      const slot = slots.find(s => s.date === r.record_date)
-      if (!slot) return
-      if (r.type === 'income') slot.income  += parseFloat(r.net_amount)
-      else                     slot.expense += parseFloat(r.amount)
-    })
-    slots.forEach(s => { s.net = s.income - s.expense })
-
-    setWeeklyData(slots)
-    setWeeklyRecs(records)
+    setWeeklyRecs(data || [])
     setSelectedWDay(null)
     setLoading(false)
   }, [weekStart])
@@ -181,19 +205,7 @@ export default function DashboardModal({ onClose }) {
       .lte('record_date', `${year}-${mm}-31`)
       .order('record_date')
       .order('created_at')
-
-    const records = data || []
-    const byDay = {}
-    records.forEach(r => {
-      const d = parseInt(r.record_date.split('-')[2])
-      if (!byDay[d]) byDay[d] = { label: String(d), income: 0, expense: 0, net: 0 }
-      if (r.type === 'income') byDay[d].income  += parseFloat(r.net_amount)
-      else                     byDay[d].expense += parseFloat(r.amount)
-    })
-    Object.values(byDay).forEach(d => { d.net = d.income - d.expense })
-
-    setDailyData(Object.values(byDay).sort((a, b) => parseInt(a.label) - parseInt(b.label)))
-    setAllRecords(records)
+    setDailyRecs(data || [])
     setSelectedDay(null)
     setLoading(false)
   }, [year, month])
@@ -204,20 +216,32 @@ export default function DashboardModal({ onClose }) {
     else                        loadDaily()
   }, [view, loadMonthly, loadWeekly, loadDaily])
 
+  /* ── Derived: apply channel filter to raw records ── */
+  const applyChannel = recs => channelFilter ? recs.filter(r => r.source === channelFilter) : recs
+  const effMonthly = applyChannel(monthlyRecs)
+  const effWeekly  = applyChannel(weeklyRecs)
+  const effDaily   = applyChannel(dailyRecs)
+
+  /* ── Compute chart data from filtered records ── */
+  const monthlyData = computeMonthlyData(effMonthly)
+  const weeklyData  = computeWeeklyData(effWeekly, weekStart)
+  const dailyData   = computeDailyData(effDaily)
+
   /* ── Derived totals ── */
-  const activeData = view === 'monthly' ? monthlyData : view === 'weekly' ? weeklyData : dailyData
+  const activeData   = view === 'monthly' ? monthlyData : view === 'weekly' ? weeklyData : dailyData
   const totalIncome  = activeData.reduce((s, d) => s + d.income,  0)
   const totalExpense = activeData.reduce((s, d) => s + d.expense, 0)
 
   const visibleWeeklyRecs = selectedWDay !== null
-    ? weeklyRecs.filter(r => r.record_date === weeklyData[selectedWDay]?.date)
-    : weeklyRecs
+    ? effWeekly.filter(r => r.record_date === weeklyData[selectedWDay]?.date)
+    : effWeekly
 
   const visibleDailyRecs = selectedDay
-    ? allRecords.filter(r => parseInt(r.record_date.split('-')[2]) === selectedDay)
-    : allRecords
+    ? effDaily.filter(r => parseInt(r.record_date.split('-')[2]) === selectedDay)
+    : effDaily
 
-  const isClickable = view === 'daily' || view === 'weekly'
+  const isClickable   = view === 'daily' || view === 'weekly'
+  const channelLabel  = CHANNELS.find(c => c.key === channelFilter)?.label ?? null
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center sm:p-4 backdrop-blur-sm">
@@ -295,9 +319,27 @@ export default function DashboardModal({ onClose }) {
           )}
         </div>
 
+        {/* ── Channel filter ── */}
+        <div className="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mr-1">ช่องทาง</span>
+          {CHANNELS.map(({ key, label }) => (
+            <button
+              key={String(key)}
+              onClick={() => setChannelFilter(prev => prev === key ? null : key)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                channelFilter === key
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
           {/* Summary cards */}
-          <SummaryCards income={totalIncome} expense={totalExpense} />
+          <SummaryCards income={totalIncome} expense={totalExpense} channelLabel={channelFilter ? channelLabel : null} />
 
           {/* Chart */}
           <div className="px-5 pb-4">
@@ -325,11 +367,7 @@ export default function DashboardModal({ onClose }) {
                     style={{ cursor: isClickable ? 'pointer' : 'default' }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false} tickLine={false}
-                    />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                     <YAxis
                       tick={{ fontSize: 11, fill: '#94a3b8' }}
                       axisLine={false} tickLine={false}
@@ -338,8 +376,16 @@ export default function DashboardModal({ onClose }) {
                     />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                    <Bar dataKey="income"  name="รายรับ"  fill="#10b981" radius={[4,4,0,0]} maxBarSize={36} />
-                    <Bar dataKey="expense" name="รายจ่าย" fill="#f87171" radius={[4,4,0,0]} maxBarSize={36} />
+                    <Bar
+                      dataKey="income"
+                      name={channelFilter ? `รายรับ — ${channelLabel}` : 'รายรับ'}
+                      fill="#10b981"
+                      radius={[4,4,0,0]}
+                      maxBarSize={36}
+                    />
+                    {!channelFilter && (
+                      <Bar dataKey="expense" name="รายจ่าย" fill="#f87171" radius={[4,4,0,0]} maxBarSize={36} />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -357,7 +403,10 @@ export default function DashboardModal({ onClose }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      {['เดือน','รายรับ','รายจ่าย','กำไร'].map(h => (
+                      {(channelFilter
+                        ? ['เดือน', `รายรับ — ${channelLabel}`]
+                        : ['เดือน','รายรับ','รายจ่าย','กำไร']
+                      ).map(h => (
                         <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'เดือน' ? 'text-left' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
@@ -368,11 +417,15 @@ export default function DashboardModal({ onClose }) {
                       return (
                         <tr key={i} className={`border-b border-slate-100 transition-colors ${hasData ? 'hover:bg-slate-50' : 'opacity-40'}`}>
                           <td className="px-4 py-2.5 font-medium text-slate-700">{MONTH_FULL[i]}</td>
-                          <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{m.income  > 0 ? `฿${fmtFull(m.income)}`  : '-'}</td>
-                          <td className="px-4 py-2.5 text-right text-red-500    font-semibold">{m.expense > 0 ? `฿${fmtFull(m.expense)}` : '-'}</td>
-                          <td className={`px-4 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
-                            {hasData ? `฿${fmtFull(m.net)}` : '-'}
-                          </td>
+                          <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{m.income > 0 ? `฿${fmtFull(m.income)}` : '-'}</td>
+                          {!channelFilter && (
+                            <>
+                              <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{m.expense > 0 ? `฿${fmtFull(m.expense)}` : '-'}</td>
+                              <td className={`px-4 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                {hasData ? `฿${fmtFull(m.net)}` : '-'}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       )
                     })}
@@ -385,14 +438,16 @@ export default function DashboardModal({ onClose }) {
           {/* Weekly breakdown table + record list */}
           {view === 'weekly' && !loading && (
             <div className="px-5 pb-6 space-y-4">
-              {/* 7-day breakdown table */}
               <div>
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">รายละเอียดรายวัน (สัปดาห์นี้)</p>
                 <div className="rounded-2xl border border-slate-200 overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
-                        {['วัน','รายรับ','รายจ่าย','กำไร'].map(h => (
+                        {(channelFilter
+                          ? ['วัน', `รายรับ — ${channelLabel}`]
+                          : ['วัน','รายรับ','รายจ่าย','กำไร']
+                        ).map(h => (
                           <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'วัน' ? 'text-left' : 'text-right'}`}>{h}</th>
                         ))}
                       </tr>
@@ -413,11 +468,15 @@ export default function DashboardModal({ onClose }) {
                               <span className="font-semibold text-slate-500 mr-1.5">{WDAY_SHORT[i]}</span>
                               {new Date(d.date + 'T00:00:00').getDate()} {MONTH_SHORT[new Date(d.date + 'T00:00:00').getMonth()]}
                             </td>
-                            <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{d.income  > 0 ? `฿${fmtFull(d.income)}`  : '-'}</td>
-                            <td className="px-4 py-2.5 text-right text-red-500    font-semibold">{d.expense > 0 ? `฿${fmtFull(d.expense)}` : '-'}</td>
-                            <td className={`px-4 py-2.5 text-right font-bold ${d.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
-                              {hasData ? `฿${fmtFull(d.net)}` : '-'}
-                            </td>
+                            <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{d.income > 0 ? `฿${fmtFull(d.income)}` : '-'}</td>
+                            {!channelFilter && (
+                              <>
+                                <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{d.expense > 0 ? `฿${fmtFull(d.expense)}` : '-'}</td>
+                                <td className={`px-4 py-2.5 text-right font-bold ${d.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                  {hasData ? `฿${fmtFull(d.net)}` : '-'}
+                                </td>
+                              </>
+                            )}
                           </tr>
                         )
                       })}
@@ -426,7 +485,6 @@ export default function DashboardModal({ onClose }) {
                 </div>
               </div>
 
-              {/* Weekly record list */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
