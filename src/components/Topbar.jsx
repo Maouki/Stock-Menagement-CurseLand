@@ -1,6 +1,6 @@
 import { Menu, Search, Plus, LogOut, User, Wallet, BarChart2 } from 'lucide-react'
 
-export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, onFinance, onDashboard, currentUser, onLogout }) {
+export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, onFinance, onDashboard, currentUser, onLogout, activeBranch }) {
   return (
     <div className="bg-white border-b border-slate-200 flex-shrink-0 shadow-sm">
       <div className="h-16 flex items-center justify-between px-4 gap-3">
@@ -12,9 +12,10 @@ export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, 
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-base font-bold text-slate-800 truncate hidden sm:block">
-            ระบบจัดการสต๊อกสินค้า ปาร์คอิน
-          </h1>
+          <div className="hidden sm:flex flex-col leading-tight">
+            <span className="text-base font-bold text-slate-800">ระบบจัดการสต๊อกสินค้า</span>
+            <span className="text-xs text-indigo-600 font-semibold">สาขา{activeBranch}</span>
+          </div>
           <h1 className="text-sm font-bold text-slate-800 truncate sm:hidden">
             สต๊อกสินค้า
           </h1>

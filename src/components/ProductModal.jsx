@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { X, Save } from 'lucide-react'
 
+const BRANCHES = ['ปาร์คอิน', 'บางแสน', 'หนองมน', 'บางพระ']
+
 const EMPTY_FORM = {
   name: '',
   barcode: '',
@@ -13,6 +15,7 @@ const EMPTY_FORM = {
   current_stock: 0,
   min_stock: 10,
   group_name: 'รายการสินค้า',
+  branch: 'ปาร์คอิน',
 }
 
 export default function ProductModal({ product, isEdit, categories, groups, onSave, onClose }) {
@@ -72,6 +75,17 @@ export default function ProductModal({ product, isEdit, categories, groups, onSa
                   placeholder="ระบุชื่อสินค้า"
                   className={inputCls}
                 />
+              </Field>
+
+              <Field label="สาขา" required>
+                <select
+                  value={form.branch}
+                  onChange={set('branch')}
+                  className={inputCls}
+                  required
+                >
+                  {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
               </Field>
 
               <Field label="กลุ่มสินค้า">

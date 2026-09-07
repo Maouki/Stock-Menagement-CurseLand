@@ -33,6 +33,7 @@ function MainApp({ currentUser, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [toast, setToast] = useState(null)
   const [modal, setModal] = useState(null)
+  const [activeBranch, setActiveBranch] = useState('ปาร์คอิน')
   const [activeGroup, setActiveGroup] = useState(null)
   const [activeMain, setActiveMain] = useState('')
   const [activeSub, setActiveSub] = useState('')
@@ -73,13 +74,16 @@ function MainApp({ currentUser, onLogout }) {
     return () => supabase.removeChannel(channel)
   }, [])
 
+  const matchBranch = (p) => (p.branch || 'ปาร์คอิน') === activeBranch
+
   const groups = useMemo(() =>
-    [...new Set(products.map(p => p.group_name).filter(Boolean))].sort(),
-    [products]
+    [...new Set(products.filter(matchBranch).map(p => p.group_name).filter(Boolean))].sort(),
+    [products, activeBranch]
   )
 
   const categories = useMemo(() => {
-    const scope = activeGroup ? products.filter(p => p.group_name === activeGroup) : products
+    const branchItems = products.filter(matchBranch)
+    const scope = activeGroup ? branchItems.filter(p => p.group_name === activeGroup) : branchItems
     const cat = {}
     scope.forEach(p => {
       if (!p.main_category) return
@@ -89,11 +93,12 @@ function MainApp({ currentUser, onLogout }) {
     return Object.fromEntries(
       Object.entries(cat).sort().map(([k, v]) => [k, [...v].sort()])
     )
-  }, [products, activeGroup])
+  }, [products, activeBranch, activeGroup])
 
   const stats = useMemo(() => {
     const today = new Date()
-    const scope = activeGroup ? products.filter(p => p.group_name === activeGroup) : products
+    const branchItems = products.filter(matchBranch)
+    const scope = activeGroup ? branchItems.filter(p => p.group_name === activeGroup) : branchItems
     return {
       total: scope.length,
       low_stock: scope.filter(p => p.current_stock > 0 && p.current_stock <= (p.min_stock ?? 10)).length,
@@ -104,11 +109,11 @@ function MainApp({ currentUser, onLogout }) {
         return days >= 0 && days <= 90
       }).length,
     }
-  }, [products, activeGroup])
+  }, [products, activeBranch, activeGroup])
 
   const filteredProducts = useMemo(() => {
     const today = new Date()
-    let items = products
+    let items = products.filter(matchBranch)
 
     if (activeGroup) items = items.filter(p => p.group_name === activeGroup)
     if (activeMain) {
@@ -151,7 +156,7 @@ function MainApp({ currentUser, onLogout }) {
       }
       return a.id - b.id
     })
-  }, [products, activeGroup, activeMain, activeSub, activeFilter, searchQuery, sortBy])
+  }, [products, activeBranch, activeGroup, activeMain, activeSub, activeFilter, searchQuery, sortBy])
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type, id: Date.now() })
@@ -223,6 +228,14 @@ function MainApp({ currentUser, onLogout }) {
     if (window.innerWidth < 768) setSidebarOpen(false)
   }, [])
 
+  const handleBranchChange = useCallback((b) => {
+    setActiveBranch(b)
+    setActiveGroup(null)
+    setActiveMain('')
+    setActiveSub('')
+    setActiveFilter('all')
+  }, [])
+
   const handleGroupChange = useCallback((g) => {
     setActiveGroup(g)
     setActiveMain('')
@@ -244,6 +257,8 @@ function MainApp({ currentUser, onLogout }) {
 
       <Sidebar
         open={sidebarOpen}
+        activeBranch={activeBranch}
+        onBranchChange={handleBranchChange}
         categories={categories}
         activeMain={activeMain}
         activeSub={activeSub}
@@ -258,11 +273,13 @@ function MainApp({ currentUser, onLogout }) {
           onSearch={setSearchQuery}
           currentUser={currentUser}
           onLogout={onLogout}
+          activeBranch={activeBranch}
           onDashboard={() => setModal({ type: 'dashboard' })}
           onFinance={() => setModal({ type: 'finance' })}
           onAdd={() => setModal({
             type: 'add',
             product: {
+              branch: activeBranch,
               group_name: activeGroup || groups[0] || 'รายการสินค้า',
               main_category: activeMain,
               sub_category: activeSub,
