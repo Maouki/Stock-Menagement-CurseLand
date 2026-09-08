@@ -164,12 +164,13 @@ function MainApp({ currentUser, onLogout }) {
 
   const handleSave = useCallback(async (data) => {
     const isEdit = Boolean(data.id)
+    const payload = { ...data, expiry: data.expiry || null }
     let error
     if (isEdit) {
-      const { id, created_at, updated_at, ...updates } = data
+      const { id, created_at, updated_at, ...updates } = payload
       ;({ error } = await supabase.from('products').update(updates).eq('id', id))
     } else {
-      ;({ error } = await supabase.from('products').insert(data))
+      ;({ error } = await supabase.from('products').insert(payload))
     }
     if (error) { showToast(error.message, 'error'); return false }
     showToast(isEdit ? 'แก้ไขสินค้าเรียบร้อย' : 'เพิ่มสินค้าเรียบร้อย', 'success')
