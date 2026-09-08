@@ -1,5 +1,6 @@
 import { Boxes, ExternalLink } from 'lucide-react'
 
+
 export default function SetupGuide() {
   return (
     <div className="min-h-screen bg-slate-100 font-sans flex items-center justify-center p-6">

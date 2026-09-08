@@ -148,9 +148,9 @@ export default function ProductTable({ products, loading, onEdit, onDelete, onSh
               <tr>
                 <td colSpan={10} className="py-16 text-center text-slate-400 text-sm">ไม่พบรายการสินค้า</td>
               </tr>
-            ) : products.map(p => (
+            ) : products.map((p, i) => (
               <tr key={p.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${stockBorderClass(p)}`}>
-                <td className="px-3 py-2.5 text-slate-400 font-medium text-xs">{p.id}</td>
+                <td className="px-3 py-2.5 text-slate-400 font-medium text-xs">{i + 1}</td>
                 <td className="px-3 py-2.5">
                   <div className="font-semibold text-slate-800 leading-tight">{p.name}</div>
                   
