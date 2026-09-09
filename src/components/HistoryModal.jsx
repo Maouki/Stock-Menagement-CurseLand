@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Truck, PackageMinus, History } from 'lucide-react'
+import { X, Truck, PackageMinus, History, ArrowLeftRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 function formatDate(dateStr) {
@@ -20,20 +20,45 @@ export default function HistoryModal({ product, onClose }) {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('shipments')
-        .select('*')
-        .eq('product_id', product.id)
-        .order('shipment_date', { ascending: false })
-        .order('created_at', { ascending: false })
-      if (!error) setRecords(data || [])
+      const [shipmentsRes, transfersRes] = await Promise.all([
+        supabase
+          .from('shipments')
+          .select('*')
+          .eq('product_id', product.id)
+          .order('shipment_date', { ascending: false }),
+        supabase
+          .from('stock_transfers')
+          .select('*')
+          .eq('product_id', product.id)
+          .order('transfer_date', { ascending: false }),
+      ])
+
+      const shipments = (shipmentsRes.data || []).map(r => ({
+        ...r,
+        record_type: r.type,
+        date: r.shipment_date,
+      }))
+      const transfers = (transfersRes.data || []).map(r => ({
+        ...r,
+        record_type: 'transfer',
+        date: r.transfer_date,
+      }))
+
+      const combined = [...shipments, ...transfers].sort((a, b) => {
+        if (a.date > b.date) return -1
+        if (a.date < b.date) return 1
+        return (b.created_at || '').localeCompare(a.created_at || '')
+      })
+
+      setRecords(combined)
       setLoading(false)
     }
     load()
   }, [product.id])
 
-  const totalIn = records.filter(r => r.type !== 'out').reduce((s, r) => s + r.quantity, 0)
-  const totalOut = records.filter(r => r.type === 'out').reduce((s, r) => s + r.quantity, 0)
+  const totalIn = records.filter(r => r.record_type === 'in').reduce((s, r) => s + r.quantity, 0)
+  const totalOut = records.filter(r => r.record_type === 'out').reduce((s, r) => s + r.quantity, 0)
+  const totalTransfer = records.filter(r => r.record_type === 'transfer').reduce((s, r) => s + r.quantity, 0)
 
   return (
     <div
@@ -55,7 +80,7 @@ export default function HistoryModal({ product, onClose }) {
         </div>
 
         {!loading && records.length > 0 && (
-          <div className="flex gap-4 px-6 py-3 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+          <div className="flex flex-wrap gap-3 px-6 py-3 border-b border-slate-100 bg-slate-50 flex-shrink-0">
             <div className="flex items-center gap-2 text-sm">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-100 text-sky-700 font-semibold text-xs">
                 <Truck className="w-3 h-3" /> รับเข้ารวม
@@ -68,6 +93,14 @@ export default function HistoryModal({ product, onClose }) {
               </span>
               <span className="font-bold text-orange-600">-{totalOut}</span>
             </div>
+            {totalTransfer > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold text-xs">
+                  <ArrowLeftRight className="w-3 h-3" /> โอนรวม
+                </span>
+                <span className="font-bold text-violet-600">-{totalTransfer}</span>
+              </div>
+            )}
             <div className="ml-auto text-sm text-slate-500">
               สต๊อกปัจจุบัน <span className="font-bold text-slate-700">{product.current_stock}</span>
             </div>
@@ -89,17 +122,21 @@ export default function HistoryModal({ product, onClose }) {
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">วันที่</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">ประเภท</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">จำนวน</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">หมายเหตุ</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">รายละเอียด</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map(r => (
-                  <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(r.shipment_date)}</td>
+                  <tr key={`${r.record_type}-${r.id}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(r.date)}</td>
                     <td className="px-4 py-3">
-                      {r.type === 'out' ? (
+                      {r.record_type === 'out' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
                           <PackageMinus className="w-3 h-3" /> จ่ายออก
+                        </span>
+                      ) : r.record_type === 'transfer' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
+                          <ArrowLeftRight className="w-3 h-3" /> โอนสาขา
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
@@ -107,10 +144,17 @@ export default function HistoryModal({ product, onClose }) {
                         </span>
                       )}
                     </td>
-                    <td className={`px-4 py-3 text-right font-bold text-base ${r.type === 'out' ? 'text-orange-600' : 'text-sky-600'}`}>
-                      {r.type === 'out' ? '-' : '+'}{r.quantity}
+                    <td className={`px-4 py-3 text-right font-bold text-base ${
+                      r.record_type === 'out' || r.record_type === 'transfer' ? 'text-orange-600' : 'text-sky-600'
+                    }`}>
+                      {r.record_type === 'out' || r.record_type === 'transfer' ? '-' : '+'}{r.quantity}
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs">{r.notes || '-'}</td>
+                    <td className="px-4 py-3 text-slate-400 text-xs">
+                      {r.record_type === 'transfer'
+                        ? <span className="text-violet-600 font-medium">→ {r.to_branch}{r.notes ? ` · ${r.notes}` : ''}</span>
+                        : r.notes || '-'
+                      }
+                    </td>
                   </tr>
                 ))}
               </tbody>

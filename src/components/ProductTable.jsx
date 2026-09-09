@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Truck, PackageMinus, History } from 'lucide-react'
+import { Pencil, Trash2, Truck, PackageMinus, History, ArrowLeftRight } from 'lucide-react'
 
 function formatDate(dateStr) {
   if (!dateStr) return '-'
@@ -36,31 +36,34 @@ function stockBorderClass(p) {
 }
 
 const ACTIONS = [
-  { key: 'ship',    label: 'รับเข้า',  color: 'blue',   Icon: Truck },
-  { key: 'out',     label: 'จ่ายออก', color: 'orange', Icon: PackageMinus },
-  { key: 'history', label: 'ประวัติ', color: 'slate',  Icon: History },
-  { key: 'edit',    label: 'แก้ไข',   color: 'indigo', Icon: Pencil },
-  { key: 'delete',  label: 'ลบ',      color: 'red',    Icon: Trash2 },
+  { key: 'ship',     label: 'รับเข้า',  color: 'blue',   Icon: Truck },
+  { key: 'out',      label: 'จ่ายออก', color: 'orange', Icon: PackageMinus },
+  { key: 'transfer', label: 'โอน',     color: 'violet', Icon: ArrowLeftRight },
+  { key: 'history',  label: 'ประวัติ', color: 'slate',  Icon: History },
+  { key: 'edit',     label: 'แก้ไข',   color: 'indigo', Icon: Pencil },
+  { key: 'delete',   label: 'ลบ',      color: 'red',    Icon: Trash2 },
 ]
 
 const COLORS = {
   blue:   'bg-sky-50    text-sky-600    hover:bg-sky-600    hover:text-white active:scale-95',
   orange: 'bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white active:scale-95',
+  violet: 'bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white active:scale-95',
   slate:  'bg-slate-100 text-slate-500  hover:bg-slate-500  hover:text-white active:scale-95',
   indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white active:scale-95',
   red:    'bg-red-50    text-red-600    hover:bg-red-600    hover:text-white active:scale-95',
 }
 
 function resolveHandler(key, p, handlers) {
-  if (key === 'ship')    return () => handlers.onShipment(p)
-  if (key === 'out')     return () => handlers.onStockOut(p)
-  if (key === 'history') return () => handlers.onHistory(p)
-  if (key === 'edit')    return () => handlers.onEdit(p)
-  if (key === 'delete')  return () => handlers.onDelete(p)
+  if (key === 'ship')     return () => handlers.onShipment(p)
+  if (key === 'out')      return () => handlers.onStockOut(p)
+  if (key === 'transfer') return () => handlers.onTransfer(p)
+  if (key === 'history')  return () => handlers.onHistory(p)
+  if (key === 'edit')     return () => handlers.onEdit(p)
+  if (key === 'delete')   return () => handlers.onDelete(p)
 }
 
-export default function ProductTable({ products, loading, onEdit, onDelete, onShipment, onStockOut, onHistory }) {
-  const handlers = { onEdit, onDelete, onShipment, onStockOut, onHistory }
+export default function ProductTable({ products, loading, onEdit, onDelete, onShipment, onStockOut, onTransfer, onHistory }) {
+  const handlers = { onEdit, onDelete, onShipment, onStockOut, onTransfer, onHistory }
 
   return (
     <div className="flex-1 overflow-hidden px-3 md:px-4 pt-3 pb-0">
@@ -127,7 +130,7 @@ export default function ProductTable({ products, loading, onEdit, onDelete, onSh
         <table className="w-full text-sm border-collapse min-w-[900px]">
           <thead>
             <tr className="border-b border-slate-200">
-              {['#', 'ชื่อสินค้า', 'บาร์โค้ด', 'ประเภทหลัก', 'ประเภทย่อย', 'Brand', 'Lot', 'วันหมดอายุ', 'คงเหลือ', 'จัดการ'].map(h => (
+              {['#', 'ชื่อสินค้า', 'บาร์โค้ด', 'ประเภทหลัก', 'ประเภทย่อย', 'Brand', 'Lot', 'วันหมดอายุ', 'คงเหลือ', 'จัดการ'].map((h) => (
                 <th key={h} className="sticky top-0 bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap z-10">
                   {h}
                 </th>

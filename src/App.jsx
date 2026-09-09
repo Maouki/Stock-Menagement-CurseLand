@@ -12,6 +12,7 @@ import StockOutModal from './components/StockOutModal'
 import HistoryModal from './components/HistoryModal'
 import FinanceModal from './components/FinanceModal'
 import DashboardModal from './components/DashboardModal'
+import TransferModal from './components/TransferModal'
 import Toast from './components/Toast'
 import AlertBanner from './components/AlertBanner'
 import SetupGuide from './components/SetupGuide'
@@ -223,6 +224,66 @@ function MainApp({ currentUser, onLogout }) {
     setModal(null)
   }, [products, showToast])
 
+  const handleTransfer = useCallback(async ({ productId, toBranch, quantity, date, notes }) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+
+    const fromBranch = product.branch || 'ปาร์คอิน'
+    const destProduct = products.find(p =>
+      (p.branch || 'ปาร์คอิน') === toBranch &&
+      p.name === product.name &&
+      (p.barcode || '') === (product.barcode || '')
+    )
+
+    const { error: transferErr } = await supabase.from('stock_transfers').insert({
+      product_id: productId,
+      from_branch: fromBranch,
+      to_branch: toBranch,
+      quantity,
+      transfer_date: date,
+      notes,
+    })
+    if (transferErr) { showToast(transferErr.message, 'error'); return }
+
+    const { error: srcErr } = await supabase
+      .from('products')
+      .update({ current_stock: Math.max(0, product.current_stock - quantity) })
+      .eq('id', productId)
+    if (srcErr) { showToast(srcErr.message, 'error'); return }
+
+    let destProductId
+    if (destProduct) {
+      const { error: dstErr } = await supabase
+        .from('products')
+        .update({ current_stock: destProduct.current_stock + quantity })
+        .eq('id', destProduct.id)
+      if (dstErr) { showToast(dstErr.message, 'error'); return }
+      destProductId = destProduct.id
+    } else {
+      const { created_at, updated_at, id, current_stock, branch, ...rest } = product
+      const { data: inserted, error: insertErr } = await supabase
+        .from('products')
+        .insert({ ...rest, branch: toBranch, current_stock: quantity })
+        .select('id')
+        .single()
+      if (insertErr) { showToast(insertErr.message, 'error'); return }
+      destProductId = inserted.id
+    }
+
+    const inboundNote = `โอนจาก ${fromBranch}${notes ? ` · ${notes}` : ''}`
+    const { error: inboundErr } = await supabase.from('shipments').insert({
+      product_id: destProductId,
+      quantity,
+      shipment_date: date,
+      notes: inboundNote,
+      type: 'in',
+    })
+    if (inboundErr) { showToast(inboundErr.message, 'error'); return }
+
+    showToast(`โอน ${quantity} หน่วยไป ${toBranch} เรียบร้อย`, 'success')
+    setModal(null)
+  }, [products, showToast])
+
   const handleCategoryChange = useCallback((main, sub) => {
     setActiveMain(main)
     setActiveSub(sub)
@@ -314,6 +375,7 @@ function MainApp({ currentUser, onLogout }) {
           onShipment={p => setModal({ type: 'shipment', product: p })}
           onStockOut={p => setModal({ type: 'stockout', product: p })}
           onHistory={p => setModal({ type: 'history', product: p })}
+          onTransfer={p => setModal({ type: 'transfer', product: p })}
         />
 
         <div className="px-6 py-2 text-sm text-slate-500 flex-shrink-0 border-t border-slate-200 bg-white">
@@ -359,6 +421,14 @@ function MainApp({ currentUser, onLogout }) {
       {modal?.type === 'history' && (
         <HistoryModal
           product={modal.product}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === 'transfer' && (
+        <TransferModal
+          product={modal.product}
+          onSave={handleTransfer}
           onClose={() => setModal(null)}
         />
       )}
