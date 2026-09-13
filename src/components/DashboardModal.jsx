@@ -9,13 +9,16 @@ import { supabase } from '../lib/supabase'
 const MONTH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 const MONTH_FULL  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม']
 const WDAY_SHORT  = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.']
-const SOURCE_LABEL = { boardgame: 'บอร์ดเกม (ชั้น 2)', restaurant: 'ร้านอาหาร (ชั้น 1)', grab: 'Grab', expense: 'รายจ่าย' }
+const SOURCE_LABEL = { boardgame: 'บอร์ดเกม', restaurant: 'ร้านอาหาร (ชั้น 1)', grab: 'Grab', expense: 'รายจ่าย' }
 
-const CHANNELS = [
+const MAIN_BRANCH = 'ปาร์คอิน'
+const BRANCH_LIST = ['ปาร์คอิน', 'บางแสน', 'หนองมน', 'บางพระ']
+
+const ALL_CHANNELS = [
   { key: null,         label: 'ทั้งหมด',           color: null },
   { key: 'restaurant', label: 'ร้านอาหาร (ชั้น 1)', color: 'emerald' },
   { key: 'grab',       label: 'Grab',               color: 'orange' },
-  { key: 'boardgame',  label: 'บอร์ดเกม (ชั้น 2)',  color: 'violet' },
+  { key: 'boardgame',  label: 'บอร์ดเกม',            color: 'violet' },
 ]
 
 function fmt(n)     { return Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 0 }) }
@@ -90,6 +93,19 @@ function computeDailyData(recs) {
   return Object.values(byDay).sort((a, b) => parseInt(a.label) - parseInt(b.label))
 }
 
+function computeBranchSummary(recs) {
+  const map = {}
+  BRANCH_LIST.forEach(b => { map[b] = { label: b, income: 0, expense: 0, net: 0 } })
+  recs.forEach(r => {
+    const b = r.branch || MAIN_BRANCH
+    if (!map[b]) return
+    if (r.type === 'income') map[b].income += parseFloat(r.net_amount)
+    else                     map[b].expense += parseFloat(r.amount)
+  })
+  BRANCH_LIST.forEach(b => { map[b].net = map[b].income - map[b].expense })
+  return BRANCH_LIST.map(b => map[b])
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -143,15 +159,15 @@ function SummaryCards({ income, expense, channelLabel }) {
   )
 }
 
-export default function DashboardModal({ onClose }) {
+export default function DashboardModal({ branch = MAIN_BRANCH, onClose }) {
   const now = new Date()
+  const [selectedBranch, setSelectedBranch] = useState(branch)
   const [view,          setView]         = useState('monthly')
   const [year,          setYear]         = useState(now.getFullYear())
   const [month,         setMonth]        = useState(now.getMonth())
   const [weekStart,     setWeekStart]    = useState(() => getMondayISO())
   const [channelFilter, setChannelFilter] = useState(null)
 
-  // Raw records per view
   const [monthlyRecs, setMonthlyRecs] = useState([])
   const [weeklyRecs,  setWeeklyRecs]  = useState([])
   const [dailyRecs,   setDailyRecs]   = useState([])
@@ -160,55 +176,72 @@ export default function DashboardModal({ onClose }) {
   const [selectedWDay, setSelectedWDay] = useState(null)
   const [loading,      setLoading]      = useState(false)
 
+  const isAllBranches = selectedBranch === 'all'
+
+  const CHANNELS = (!isAllBranches && selectedBranch !== MAIN_BRANCH)
+    ? ALL_CHANNELS.filter(c => c.key === null || c.key === 'boardgame')
+    : ALL_CHANNELS
+
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
   }, [onClose])
 
+  // Reset channel filter when switching to/from all-branches (restaurant/grab don't exist in sub-branches)
+  useEffect(() => {
+    setChannelFilter(null)
+  }, [selectedBranch])
+
   /* ── Monthly loader ── */
   const loadMonthly = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    let q = supabase
       .from('finance_records')
-      .select('record_date, type, net_amount, amount, source')
+      .select('record_date, type, net_amount, amount, source, branch')
       .gte('record_date', `${year}-01-01`)
       .lte('record_date', `${year}-12-31`)
+    if (!isAllBranches) q = q.eq('branch', selectedBranch)
+    const { data } = await q
     setMonthlyRecs(data || [])
     setLoading(false)
-  }, [year])
+  }, [year, selectedBranch, isAllBranches])
 
   /* ── Weekly loader ── */
   const loadWeekly = useCallback(async () => {
     setLoading(true)
     const weekEnd = addDays(weekStart, 6)
-    const { data } = await supabase
+    let q = supabase
       .from('finance_records')
       .select('*')
       .gte('record_date', weekStart)
       .lte('record_date', weekEnd)
       .order('record_date')
       .order('created_at')
+    if (!isAllBranches) q = q.eq('branch', selectedBranch)
+    const { data } = await q
     setWeeklyRecs(data || [])
     setSelectedWDay(null)
     setLoading(false)
-  }, [weekStart])
+  }, [weekStart, selectedBranch, isAllBranches])
 
   /* ── Daily loader ── */
   const loadDaily = useCallback(async () => {
     setLoading(true)
     const mm = String(month + 1).padStart(2, '0')
-    const { data } = await supabase
+    let q = supabase
       .from('finance_records')
       .select('*')
       .gte('record_date', `${year}-${mm}-01`)
       .lte('record_date', `${year}-${mm}-31`)
       .order('record_date')
       .order('created_at')
+    if (!isAllBranches) q = q.eq('branch', selectedBranch)
+    const { data } = await q
     setDailyRecs(data || [])
     setSelectedDay(null)
     setLoading(false)
-  }, [year, month])
+  }, [year, month, selectedBranch, isAllBranches])
 
   useEffect(() => {
     if (view === 'monthly')     loadMonthly()
@@ -216,21 +249,27 @@ export default function DashboardModal({ onClose }) {
     else                        loadDaily()
   }, [view, loadMonthly, loadWeekly, loadDaily])
 
-  /* ── Derived: apply channel filter to raw records ── */
+  /* ── Derived: apply channel filter ── */
   const applyChannel = recs => channelFilter ? recs.filter(r => r.source === channelFilter) : recs
   const effMonthly = applyChannel(monthlyRecs)
   const effWeekly  = applyChannel(weeklyRecs)
   const effDaily   = applyChannel(dailyRecs)
 
-  /* ── Compute chart data from filtered records ── */
-  const monthlyData = computeMonthlyData(effMonthly)
-  const weeklyData  = computeWeeklyData(effWeekly, weekStart)
-  const dailyData   = computeDailyData(effDaily)
+  /* ── Chart data ── */
+  const activeRecs = view === 'monthly' ? effMonthly : view === 'weekly' ? effWeekly : effDaily
 
-  /* ── Derived totals ── */
-  const activeData   = view === 'monthly' ? monthlyData : view === 'weekly' ? weeklyData : dailyData
-  const totalIncome  = activeData.reduce((s, d) => s + d.income,  0)
-  const totalExpense = activeData.reduce((s, d) => s + d.expense, 0)
+  // All-branches: branch comparison chart
+  const branchSummaryData = isAllBranches ? computeBranchSummary(activeRecs) : []
+
+  // Single-branch: time-series charts
+  const monthlyData = !isAllBranches ? computeMonthlyData(effMonthly) : []
+  const weeklyData  = !isAllBranches ? computeWeeklyData(effWeekly, weekStart) : []
+  const dailyData   = !isAllBranches ? computeDailyData(effDaily) : []
+  const activeData  = view === 'monthly' ? monthlyData : view === 'weekly' ? weeklyData : dailyData
+
+  /* ── Totals ── */
+  const totalIncome  = activeRecs.reduce((s, r) => s + (r.type === 'income' ? parseFloat(r.net_amount) : 0), 0)
+  const totalExpense = activeRecs.reduce((s, r) => s + (r.type === 'expense' ? parseFloat(r.amount) : 0), 0)
 
   const visibleWeeklyRecs = selectedWDay !== null
     ? effWeekly.filter(r => r.record_date === weeklyData[selectedWDay]?.date)
@@ -240,8 +279,14 @@ export default function DashboardModal({ onClose }) {
     ? effDaily.filter(r => parseInt(r.record_date.split('-')[2]) === selectedDay)
     : effDaily
 
-  const isClickable   = view === 'daily' || view === 'weekly'
-  const channelLabel  = CHANNELS.find(c => c.key === channelFilter)?.label ?? null
+  const isClickable  = !isAllBranches && (view === 'daily' || view === 'weekly')
+  const channelLabel = CHANNELS.find(c => c.key === channelFilter)?.label ?? null
+
+  const periodLabel = view === 'monthly'
+    ? `ปี ${year + 543}`
+    : view === 'weekly'
+    ? fmtWeekRange(weekStart)
+    : `${MONTH_FULL[month]} ${year + 543}`
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center sm:p-4 backdrop-blur-sm">
@@ -251,12 +296,46 @@ export default function DashboardModal({ onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <BarChart2 className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-base font-bold text-slate-800">แดชบอร์ด รายรับ-รายจ่าย</h2>
+            <div>
+              <h2 className="text-base font-bold text-slate-800 leading-tight">แดชบอร์ด รายรับ-รายจ่าย</h2>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                {isAllBranches ? 'ภาพรวมทุกสาขา' : selectedBranch}
+              </p>
+            </div>
           </div>
           <button onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* ── Branch tabs ── */}
+        <div className="px-5 pt-3 pb-0 flex-shrink-0">
+          <div className="flex gap-1 flex-wrap">
+            <button
+              onClick={() => setSelectedBranch('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
+                isAllBranches
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              ทุกสาขา
+            </button>
+            {BRANCH_LIST.map(b => (
+              <button
+                key={b}
+                onClick={() => setSelectedBranch(b)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
+                  selectedBranch === b && !isAllBranches
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                }`}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Controls ── */}
@@ -273,7 +352,7 @@ export default function DashboardModal({ onClose }) {
             ))}
           </div>
 
-          {/* Year picker — monthly & daily only */}
+          {/* Year picker — monthly & daily */}
           {view !== 'weekly' && (
             <div className="flex items-center gap-1">
               <button onClick={() => setYear(y => y - 1)}
@@ -319,210 +398,304 @@ export default function DashboardModal({ onClose }) {
           )}
         </div>
 
-        {/* ── Channel filter ── */}
-        <div className="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mr-1">ช่องทาง</span>
-          {CHANNELS.map(({ key, label }) => (
-            <button
-              key={String(key)}
-              onClick={() => setChannelFilter(prev => prev === key ? null : key)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                channelFilter === key
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* ── Channel filter — single branch only ── */}
+        {!isAllBranches && (
+          <div className="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mr-1">ช่องทาง</span>
+            {CHANNELS.map(({ key, label }) => (
+              <button
+                key={String(key)}
+                onClick={() => setChannelFilter(prev => prev === key ? null : key)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  channelFilter === key
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
-          {/* Summary cards */}
-          <SummaryCards income={totalIncome} expense={totalExpense} channelLabel={channelFilter ? channelLabel : null} />
 
-          {/* Chart */}
-          <div className="px-5 pb-4">
-            <div className="bg-slate-50 rounded-2xl p-4">
-              {loading ? (
-                <div className="flex items-center justify-center h-52 text-slate-400 gap-2">
-                  <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                  กำลังโหลด...
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={230}>
-                  <BarChart
-                    data={activeData}
-                    margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-                    onClick={e => {
-                      if (!e?.activeLabel) return
-                      if (view === 'daily') {
-                        const d = parseInt(e.activeLabel)
-                        setSelectedDay(prev => prev === d ? null : d)
-                      } else if (view === 'weekly') {
-                        const idx = weeklyData.findIndex(s => s.label === e.activeLabel)
-                        if (idx !== -1) setSelectedWDay(prev => prev === idx ? null : idx)
-                      }
-                    }}
-                    style={{ cursor: isClickable ? 'pointer' : 'default' }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false} tickLine={false}
-                      tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-                      width={38}
-                    />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
-                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                    <Bar
-                      dataKey="income"
-                      name={channelFilter ? `รายรับ — ${channelLabel}` : 'รายรับ'}
-                      fill="#10b981"
-                      radius={[4,4,0,0]}
-                      maxBarSize={36}
-                    />
-                    {!channelFilter && (
-                      <Bar dataKey="expense" name="รายจ่าย" fill="#f87171" radius={[4,4,0,0]} maxBarSize={36} />
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-              {isClickable && !loading && (
-                <p className="text-center text-[11px] text-slate-400 mt-1">แตะแท่งกราฟเพื่อกรองรายการ</p>
-              )}
-            </div>
-          </div>
+          {/* ═══════════════════════════════════════
+              ALL BRANCHES VIEW
+          ═══════════════════════════════════════ */}
+          {isAllBranches && (
+            <>
+              <SummaryCards income={totalIncome} expense={totalExpense} />
 
-          {/* Monthly breakdown table */}
-          {view === 'monthly' && !loading && (
-            <div className="px-5 pb-6">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">รายละเอียดรายเดือน</p>
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      {(channelFilter
-                        ? ['เดือน', `รายรับ — ${channelLabel}`]
-                        : ['เดือน','รายรับ','รายจ่าย','กำไร']
-                      ).map(h => (
-                        <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'เดือน' ? 'text-left' : 'text-right'}`}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyData.map((m, i) => {
-                      const hasData = m.income > 0 || m.expense > 0
-                      return (
-                        <tr key={i} className={`border-b border-slate-100 transition-colors ${hasData ? 'hover:bg-slate-50' : 'opacity-40'}`}>
-                          <td className="px-4 py-2.5 font-medium text-slate-700">{MONTH_FULL[i]}</td>
-                          <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{m.income > 0 ? `฿${fmtFull(m.income)}` : '-'}</td>
-                          {!channelFilter && (
-                            <>
-                              <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{m.expense > 0 ? `฿${fmtFull(m.expense)}` : '-'}</td>
-                              <td className={`px-4 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
-                                {hasData ? `฿${fmtFull(m.net)}` : '-'}
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Weekly breakdown table + record list */}
-          {view === 'weekly' && !loading && (
-            <div className="px-5 pb-6 space-y-4">
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">รายละเอียดรายวัน (สัปดาห์นี้)</p>
-                <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        {(channelFilter
-                          ? ['วัน', `รายรับ — ${channelLabel}`]
-                          : ['วัน','รายรับ','รายจ่าย','กำไร']
-                        ).map(h => (
-                          <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'วัน' ? 'text-left' : 'text-right'}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeklyData.map((d, i) => {
-                        const hasData = d.income > 0 || d.expense > 0
-                        const isSelected = selectedWDay === i
-                        return (
-                          <tr
-                            key={i}
-                            onClick={() => setSelectedWDay(prev => prev === i ? null : i)}
-                            className={`border-b border-slate-100 cursor-pointer transition-colors ${
-                              isSelected ? 'bg-indigo-50' : hasData ? 'hover:bg-slate-50' : 'opacity-40'
-                            }`}
-                          >
-                            <td className="px-4 py-2.5 font-medium text-slate-700">
-                              <span className="font-semibold text-slate-500 mr-1.5">{WDAY_SHORT[i]}</span>
-                              {new Date(d.date + 'T00:00:00').getDate()} {MONTH_SHORT[new Date(d.date + 'T00:00:00').getMonth()]}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{d.income > 0 ? `฿${fmtFull(d.income)}` : '-'}</td>
-                            {!channelFilter && (
-                              <>
-                                <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{d.expense > 0 ? `฿${fmtFull(d.expense)}` : '-'}</td>
-                                <td className={`px-4 py-2.5 text-right font-bold ${d.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
-                                  {hasData ? `฿${fmtFull(d.net)}` : '-'}
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                    {selectedWDay !== null
-                      ? `${WDAY_SHORT[selectedWDay]} ${new Date(weeklyData[selectedWDay]?.date + 'T00:00:00').toLocaleDateString('th-TH', { day:'numeric', month:'long', year:'numeric' })}`
-                      : 'รายการทั้งสัปดาห์'
-                    }
-                  </p>
-                  {selectedWDay !== null && (
-                    <button onClick={() => setSelectedWDay(null)}
-                      className="text-xs text-indigo-600 hover:underline font-semibold">
-                      ดูทั้งหมด
-                    </button>
+              {/* Branch comparison chart */}
+              <div className="px-5 pb-4">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-52 text-slate-400 gap-2">
+                      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      กำลังโหลด...
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={230}>
+                      <BarChart
+                        data={branchSummaryData}
+                        margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: '#94a3b8' }}
+                          axisLine={false} tickLine={false}
+                          tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                          width={38}
+                        />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                        <Bar dataKey="income" name="รายรับ" fill="#10b981" radius={[4,4,0,0]} maxBarSize={48} />
+                        <Bar dataKey="expense" name="รายจ่าย" fill="#f87171" radius={[4,4,0,0]} maxBarSize={48} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   )}
                 </div>
-                <RecordList records={visibleWeeklyRecs} emptyMsg="ไม่มีข้อมูลในสัปดาห์นี้" showDate />
               </div>
-            </div>
+
+              {/* Branch breakdown table */}
+              {!loading && (
+                <div className="px-5 pb-6">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+                    รายละเอียดแยกสาขา — {periodLabel}
+                  </p>
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          {['สาขา','รายรับ','รายจ่าย','กำไร'].map(h => (
+                            <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'สาขา' ? 'text-left' : 'text-right'}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {branchSummaryData.map(b => {
+                          const hasData = b.income > 0 || b.expense > 0
+                          return (
+                            <tr key={b.label} className={`border-b border-slate-100 transition-colors ${hasData ? 'hover:bg-slate-50' : 'opacity-40'}`}>
+                              <td className="px-4 py-2.5 font-semibold text-slate-700">{b.label}</td>
+                              <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{b.income > 0 ? `฿${fmtFull(b.income)}` : '-'}</td>
+                              <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{b.expense > 0 ? `฿${fmtFull(b.expense)}` : '-'}</td>
+                              <td className={`px-4 py-2.5 text-right font-bold ${b.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                {hasData ? `฿${fmtFull(b.net)}` : '-'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        {/* Total row */}
+                        <tr className="bg-slate-50 font-bold">
+                          <td className="px-4 py-2.5 text-slate-700">รวม</td>
+                          <td className="px-4 py-2.5 text-right text-emerald-700">฿{fmtFull(totalIncome)}</td>
+                          <td className="px-4 py-2.5 text-right text-red-600">฿{fmtFull(totalExpense)}</td>
+                          <td className={`px-4 py-2.5 text-right ${totalIncome - totalExpense >= 0 ? 'text-indigo-700' : 'text-orange-500'}`}>
+                            ฿{fmtFull(totalIncome - totalExpense)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Daily record list */}
-          {view === 'daily' && !loading && (
-            <div className="px-5 pb-6">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                  {selectedDay
-                    ? `วันที่ ${selectedDay} ${MONTH_FULL[month]} ${year + 543}`
-                    : `รายการทั้งหมด — ${MONTH_FULL[month]} ${year + 543}`}
-                </p>
-                {selectedDay && (
-                  <button onClick={() => setSelectedDay(null)}
-                    className="text-xs text-indigo-600 hover:underline font-semibold">
-                    ดูทั้งหมด
-                  </button>
-                )}
+          {/* ═══════════════════════════════════════
+              SINGLE BRANCH VIEW
+          ═══════════════════════════════════════ */}
+          {!isAllBranches && (
+            <>
+              <SummaryCards income={totalIncome} expense={totalExpense} channelLabel={channelFilter ? channelLabel : null} />
+
+              {/* Chart */}
+              <div className="px-5 pb-4">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-52 text-slate-400 gap-2">
+                      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      กำลังโหลด...
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={230}>
+                      <BarChart
+                        data={activeData}
+                        margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                        onClick={e => {
+                          if (!e?.activeLabel) return
+                          if (view === 'daily') {
+                            const d = parseInt(e.activeLabel)
+                            setSelectedDay(prev => prev === d ? null : d)
+                          } else if (view === 'weekly') {
+                            const idx = weeklyData.findIndex(s => s.label === e.activeLabel)
+                            if (idx !== -1) setSelectedWDay(prev => prev === idx ? null : idx)
+                          }
+                        }}
+                        style={{ cursor: isClickable ? 'pointer' : 'default' }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: '#94a3b8' }}
+                          axisLine={false} tickLine={false}
+                          tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                          width={38}
+                        />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                        <Bar
+                          dataKey="income"
+                          name={channelFilter ? `รายรับ — ${channelLabel}` : 'รายรับ'}
+                          fill="#10b981"
+                          radius={[4,4,0,0]}
+                          maxBarSize={36}
+                        />
+                        {!channelFilter && (
+                          <Bar dataKey="expense" name="รายจ่าย" fill="#f87171" radius={[4,4,0,0]} maxBarSize={36} />
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {isClickable && !loading && (
+                    <p className="text-center text-[11px] text-slate-400 mt-1">แตะแท่งกราฟเพื่อกรองรายการ</p>
+                  )}
+                </div>
               </div>
-              <RecordList records={visibleDailyRecs} emptyMsg="ไม่มีข้อมูลในเดือนนี้" showDate />
-            </div>
+
+              {/* Monthly breakdown table */}
+              {view === 'monthly' && !loading && (
+                <div className="px-5 pb-6">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">รายละเอียดรายเดือน</p>
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          {(channelFilter
+                            ? ['เดือน', `รายรับ — ${channelLabel}`]
+                            : ['เดือน','รายรับ','รายจ่าย','กำไร']
+                          ).map(h => (
+                            <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'เดือน' ? 'text-left' : 'text-right'}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyData.map((m, i) => {
+                          const hasData = m.income > 0 || m.expense > 0
+                          return (
+                            <tr key={i} className={`border-b border-slate-100 transition-colors ${hasData ? 'hover:bg-slate-50' : 'opacity-40'}`}>
+                              <td className="px-4 py-2.5 font-medium text-slate-700">{MONTH_FULL[i]}</td>
+                              <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{m.income > 0 ? `฿${fmtFull(m.income)}` : '-'}</td>
+                              {!channelFilter && (
+                                <>
+                                  <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{m.expense > 0 ? `฿${fmtFull(m.expense)}` : '-'}</td>
+                                  <td className={`px-4 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                    {hasData ? `฿${fmtFull(m.net)}` : '-'}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly breakdown + record list */}
+              {view === 'weekly' && !loading && (
+                <div className="px-5 pb-6 space-y-4">
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">รายละเอียดรายวัน (สัปดาห์นี้)</p>
+                    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            {(channelFilter
+                              ? ['วัน', `รายรับ — ${channelLabel}`]
+                              : ['วัน','รายรับ','รายจ่าย','กำไร']
+                            ).map(h => (
+                              <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-slate-500 ${h === 'วัน' ? 'text-left' : 'text-right'}`}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {weeklyData.map((d, i) => {
+                            const hasData = d.income > 0 || d.expense > 0
+                            const isSelected = selectedWDay === i
+                            return (
+                              <tr
+                                key={i}
+                                onClick={() => setSelectedWDay(prev => prev === i ? null : i)}
+                                className={`border-b border-slate-100 cursor-pointer transition-colors ${
+                                  isSelected ? 'bg-indigo-50' : hasData ? 'hover:bg-slate-50' : 'opacity-40'
+                                }`}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-700">
+                                  <span className="font-semibold text-slate-500 mr-1.5">{WDAY_SHORT[i]}</span>
+                                  {new Date(d.date + 'T00:00:00').getDate()} {MONTH_SHORT[new Date(d.date + 'T00:00:00').getMonth()]}
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{d.income > 0 ? `฿${fmtFull(d.income)}` : '-'}</td>
+                                {!channelFilter && (
+                                  <>
+                                    <td className="px-4 py-2.5 text-right text-red-500 font-semibold">{d.expense > 0 ? `฿${fmtFull(d.expense)}` : '-'}</td>
+                                    <td className={`px-4 py-2.5 text-right font-bold ${d.net >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                      {hasData ? `฿${fmtFull(d.net)}` : '-'}
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                        {selectedWDay !== null
+                          ? `${WDAY_SHORT[selectedWDay]} ${new Date(weeklyData[selectedWDay]?.date + 'T00:00:00').toLocaleDateString('th-TH', { day:'numeric', month:'long', year:'numeric' })}`
+                          : 'รายการทั้งสัปดาห์'
+                        }
+                      </p>
+                      {selectedWDay !== null && (
+                        <button onClick={() => setSelectedWDay(null)}
+                          className="text-xs text-indigo-600 hover:underline font-semibold">
+                          ดูทั้งหมด
+                        </button>
+                      )}
+                    </div>
+                    <RecordList records={visibleWeeklyRecs} emptyMsg="ไม่มีข้อมูลในสัปดาห์นี้" showDate />
+                  </div>
+                </div>
+              )}
+
+              {/* Daily record list */}
+              {view === 'daily' && !loading && (
+                <div className="px-5 pb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                      {selectedDay
+                        ? `วันที่ ${selectedDay} ${MONTH_FULL[month]} ${year + 543}`
+                        : `รายการทั้งหมด — ${MONTH_FULL[month]} ${year + 543}`}
+                    </p>
+                    {selectedDay && (
+                      <button onClick={() => setSelectedDay(null)}
+                        className="text-xs text-indigo-600 hover:underline font-semibold">
+                        ดูทั้งหมด
+                      </button>
+                    )}
+                  </div>
+                  <RecordList records={visibleDailyRecs} emptyMsg="ไม่มีข้อมูลในเดือนนี้" showDate />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
