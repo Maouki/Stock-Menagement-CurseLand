@@ -434,11 +434,11 @@ function MainApp({ currentUser, onLogout }) {
       )}
 
       {modal?.type === 'finance' && (
-        <FinanceModal onClose={() => setModal(null)} />
+        <FinanceModal branch={activeBranch} onClose={() => setModal(null)} />
       )}
 
       {modal?.type === 'dashboard' && (
-        <DashboardModal onClose={() => setModal(null)} />
+        <DashboardModal branch={activeBranch} onClose={() => setModal(null)} />
       )}
 
       {toast && (

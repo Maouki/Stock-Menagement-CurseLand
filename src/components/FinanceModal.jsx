@@ -17,11 +17,11 @@ function fmtDate(dateStr) {
   })
 }
 
-const INCOME_SOURCES = [
+const ALL_INCOME_SOURCES = [
   {
     key: 'boardgame',
     label: 'ร้านบอร์ดเกม',
-    sublabel: 'ชั้น 2',
+    sublabel: '',
     Icon: Gamepad2,
     bg: 'bg-indigo-100',
     icon: 'text-indigo-600',
@@ -50,14 +50,19 @@ const INCOME_SOURCES = [
   },
 ]
 
+const MAIN_BRANCH = 'ปาร์คอิน'
+
 const SOURCE_LABEL = {
-  boardgame:  'ร้านบอร์ดเกม (ชั้น 2)',
+  boardgame:  'ร้านบอร์ดเกม',
   restaurant: 'ร้านอาหาร (ชั้น 1)',
   grab:       'Grab',
   expense:    'รายจ่าย',
 }
 
-export default function FinanceModal({ onClose }) {
+export default function FinanceModal({ branch = MAIN_BRANCH, onClose }) {
+  const INCOME_SOURCES = branch === MAIN_BRANCH
+    ? ALL_INCOME_SOURCES
+    : ALL_INCOME_SOURCES.filter(s => s.key === 'boardgame')
   const [tab, setTab]               = useState('income')
   const [source, setSource]         = useState(null)
   const [amount, setAmount]         = useState('')
@@ -92,10 +97,11 @@ export default function FinanceModal({ onClose }) {
       .from('finance_records')
       .select('*')
       .eq('record_date', date)
+      .eq('branch', branch)
       .order('created_at', { ascending: false })
     setRecords(data || [])
     setLoadingRec(false)
-  }, [date])
+  }, [date, branch])
 
   useEffect(() => { loadRecords() }, [loadRecords])
 
@@ -158,6 +164,7 @@ export default function FinanceModal({ onClose }) {
 
     await supabase.from('finance_records').insert({
       record_date: date,
+      branch,
       type:        tab === 'income' ? 'income' : 'expense',
       source:      tab === 'income' ? source : 'expense',
       amount:      parsed,
@@ -242,7 +249,10 @@ export default function FinanceModal({ onClose }) {
           ) : (
             <div className="flex items-center gap-2.5">
               <Wallet className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-base font-bold text-slate-800">บันทึกรายรับ-รายจ่าย</h2>
+              <div>
+                <h2 className="text-base font-bold text-slate-800 leading-tight">บันทึกรายรับ-รายจ่าย</h2>
+                <p className="text-[11px] text-slate-400 leading-tight">{branch}</p>
+              </div>
             </div>
           )}
           <button onClick={onClose}
