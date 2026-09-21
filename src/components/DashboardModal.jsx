@@ -229,11 +229,12 @@ export default function DashboardModal({ branch = MAIN_BRANCH, onClose }) {
   const loadDaily = useCallback(async () => {
     setLoading(true)
     const mm = String(month + 1).padStart(2, '0')
+    const lastDay = String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')
     let q = supabase
       .from('finance_records')
       .select('*')
       .gte('record_date', `${year}-${mm}-01`)
-      .lte('record_date', `${year}-${mm}-31`)
+      .lte('record_date', `${year}-${mm}-${lastDay}`)
       .order('record_date')
       .order('created_at')
     if (!isAllBranches) q = q.eq('branch', selectedBranch)
