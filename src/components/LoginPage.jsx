@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Boxes, Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LogIn } from 'lucide-react'
+import logo from '../assets/logo.png'
+import HalloweenScene, { TorchGlow } from './HalloweenScene'
 
 export default function LoginPage({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -22,100 +24,116 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen font-sans flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)' }}
-    >
-      {/* Decorative blobs */}
-      <div className="absolute top-[-80px] left-[-80px] w-72 h-72 rounded-full opacity-20"
-        style={{ background: 'radial-gradient(circle, #818cf8, transparent)' }} />
-      <div className="absolute bottom-[-60px] right-[-60px] w-80 h-80 rounded-full opacity-15"
-        style={{ background: 'radial-gradient(circle, #a5b4fc, transparent)' }} />
+    <div className="min-h-screen font-sans relative overflow-hidden" style={{ background: '#1A1A1D' }}>
+      <HalloweenScene />
 
-      <div className="relative w-full max-w-sm">
-        {/* Card */}
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Header band */}
-          <div className="px-8 pt-10 pb-8 text-center"
-            style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)' }}
+      <div className="relative z-20 min-h-screen flex items-center justify-center p-4 pointer-events-none">
+        <div className="relative w-full max-w-sm pointer-events-auto animate-fade-in">
+          {/* Card */}
+          <div className="rounded-3xl overflow-hidden border border-white/10 backdrop-blur-md"
+            style={{
+              background: 'rgba(22, 22, 25, 0.82)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 70px rgba(255,255,255,0.04)',
+            }}
           >
-            <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center mx-auto mb-4 border border-white/20">
-              <Boxes className="w-8 h-8 text-white" />
+            {/* Header */}
+            <div className="px-8 pt-10 pb-6 text-center border-b border-white/5">
+{/* Recolor the black-on-white logo: white → page bg #1A1A1D, black → white */}
+              <svg width="0" height="0" className="absolute" aria-hidden="true">
+                <filter id="logo-recolor" colorInterpolationFilters="sRGB">
+                  <feColorMatrix type="saturate" values="0" />
+                  <feComponentTransfer>
+                    <feFuncR type="table" tableValues="1 0.102" />
+                    <feFuncG type="table" tableValues="1 0.102" />
+                    <feFuncB type="table" tableValues="1 0.114" />
+                  </feComponentTransfer>
+                </filter>
+              </svg>
+              <img
+                src={logo}
+                alt="CursedLand แดนต้องสาป"
+                className="w-28 h-28 rounded-full mx-auto mb-4 object-cover"
+                style={{ filter: 'url(#logo-recolor) drop-shadow(0 0 14px rgba(255,255,255,0.25))' }}
+              />
+              <h1 className="text-2xl font-bold leading-tight text-white"
+                style={{ textShadow: '0 0 18px rgba(255,255,255,0.35)' }}
+              >
+                Stocks CursedLand
+              </h1>
+              <p className="text-slate-400 text-sm mt-1 font-medium">Park-in</p>
             </div>
-            <h1 className="text-2xl font-bold text-white leading-tight">
-              Stocks CursedLand
-            </h1>
-            <p className="text-indigo-300 text-sm mt-1 font-medium">Park-in</p>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="px-8 py-8 space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                  ชื่อผู้ใช้
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => { setUsername(e.target.value); setError('') }}
+                  placeholder="admin"
+                  autoComplete="username"
+                  autoFocus
+                  required
+                  className="w-full bg-[#111113] border border-[#2c2c32] text-slate-100 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/70 focus:ring-2 focus:ring-white/15 transition-all placeholder:text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                  รหัสผ่าน
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setError('') }}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    required
+                    className="w-full bg-[#111113] border border-[#2c2c32] text-slate-100 rounded-xl px-4 py-3 pr-12 text-sm outline-none focus:border-white/70 focus:ring-2 focus:ring-white/15 transition-all placeholder:text-slate-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-950/50 border border-red-900/70 text-red-300 text-sm rounded-xl px-4 py-3 font-medium">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-[#1A1A1D] font-bold text-sm transition-all disabled:opacity-70 active:scale-[0.98] hover:bg-slate-200"
+                style={{ boxShadow: '0 8px 24px rgba(255,255,255,0.12)' }}
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-[#1A1A1D]/30 border-t-[#1A1A1D] rounded-full animate-spin" />
+                ) : (
+                  <LogIn className="w-4 h-4" />
+                )}
+                {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+              </button>
+            </form>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="px-8 py-8 space-y-5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                ชื่อผู้ใช้
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => { setUsername(e.target.value); setError('') }}
-                placeholder="admin"
-                autoComplete="username"
-                autoFocus
-                required
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-300"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                รหัสผ่าน
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError('') }}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 font-medium">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-70 active:scale-[0.98]"
-              style={{ background: loading ? '#6366f1' : 'linear-gradient(135deg, #4f46e5, #6366f1)' }}
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              ) : (
-                <LogIn className="w-4 h-4" />
-              )}
-              {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-            </button>
-          </form>
+          <p className="text-center text-slate-500 text-xs mt-6">
+            ระบบจัดการสต๊อกสินค้า © 2026
+          </p>
         </div>
-
-        <p className="text-center text-indigo-300/60 text-xs mt-6">
-          ระบบจัดการสต๊อกสินค้า © 2026
-        </p>
       </div>
+      <TorchGlow />
     </div>
   )
 }
