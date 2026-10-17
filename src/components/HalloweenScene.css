@@ -17,6 +17,7 @@
   border-radius: 9999px;
   background: #e9e6f5;
   animation: hw-twinkle 4s ease-in-out infinite;
+  will-change: opacity;
 }
 @keyframes hw-twinkle {
   0%, 100% { opacity: 0.15; }
@@ -68,9 +69,11 @@
 
 .hw-window {
   animation: hw-window-glow 3.2s ease-in-out infinite;
+  will-change: opacity;
 }
+/* Non-blink halos are static ambient glow — no blur filter animation */
 .hw-window-halo {
-  animation: hw-window-halo 3.2s ease-in-out infinite;
+  opacity: 0.28;
 }
 @keyframes hw-window-glow {
   0%, 100% { opacity: 0.6; }
@@ -78,13 +81,6 @@
   42%      { opacity: 0.72; }
   48%      { opacity: 0.98; }
   70%      { opacity: 0.66; }
-}
-@keyframes hw-window-halo {
-  0%, 100% { opacity: 0.25; }
-  35%      { opacity: 0.85; }
-  42%      { opacity: 0.4; }
-  48%      { opacity: 0.75; }
-  70%      { opacity: 0.3; }
 }
 /* A window someone keeps walking past with a candle */
 .hw-window.is-blink,
@@ -135,6 +131,7 @@
     radial-gradient(ellipse 20% 55% at 60% 95%, rgba(170, 165, 190, 0.10), transparent 70%),
     radial-gradient(ellipse 24% 50% at 85% 100%, rgba(170, 165, 190, 0.08), transparent 70%);
   animation: hw-fog-drift 70s linear infinite;
+  will-change: transform;
 }
 .hw-fog.is-slow {
   height: 18vh;
@@ -187,6 +184,7 @@
 .hw-crow-perched {
   transform-origin: 60% 100%;
   animation: hw-crow-idle 7s ease-in-out infinite;
+  will-change: transform;
 }
 @keyframes hw-crow-idle {
   0%, 88%, 100% { transform: rotate(0deg); }
@@ -197,6 +195,7 @@
 
 .hw-crow.is-flying {
   animation: hw-crow-fly 2.2s cubic-bezier(0.35, 0, 0.6, 1) both;
+  will-change: transform, opacity;
 }
 .hw-crow.is-gone { opacity: 0; }
 .hw-crow.is-landing {
