@@ -192,16 +192,14 @@ const WINDOWS = [
 ]
 
 function Castle() {
-  const windowStyle = (delay, dur, blink) =>
-    blink ? { animationDelay: `${delay}s` } : { animationDelay: `${delay}s`, animationDuration: `${dur}s` }
-
   return (
     <div className="hw-castle" aria-hidden="true">
       <div className="hw-castle-aura" />
       <svg viewBox="-8 -2 416 522" className="relative w-full h-auto">
         <defs>
+          {/* Blur only used for the 2 blink windows */}
           <filter id="hw-win-blur" x="-150%" y="-150%" width="400%" height="400%">
-            <feGaussianBlur stdDeviation="7" />
+            <feGaussianBlur stdDeviation="5" />
           </filter>
           <linearGradient id="hw-win-fill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#ffffff" />
@@ -244,24 +242,27 @@ function Castle() {
         <path d="M186 452V520M196 444V520M206 452V520M176 470H216M176 492H216"
           stroke="#1b1b21" strokeWidth="2" />
 
-        {/* Windows */}
+        {/* Windows — halos are static ambient glow except for the 2 blink windows */}
         {WINDOWS.map(([x, y, w, h, delay, dur, blink], i) => {
           const cls = blink ? ' is-blink' : ''
-          const s = windowStyle(delay, dur, blink)
+          const winStyle = { animationDelay: `${delay}s`, animationDuration: `${dur}s` }
           const d = archPath(x, y, w, h)
           return (
             <g key={i}>
-              <path d={d} fill="#ffffff" filter="url(#hw-win-blur)" className={`hw-window-halo${cls}`} style={s} />
-              <path d={d} fill="url(#hw-win-fill)" className={`hw-window${cls}`} style={s} />
+              <path d={d} fill="#ffffff"
+                filter={blink ? 'url(#hw-win-blur)' : undefined}
+                className={`hw-window-halo${cls}`}
+                style={blink ? { animationDelay: `${delay}s` } : undefined}
+              />
+              <path d={d} fill="url(#hw-win-fill)" className={`hw-window${cls}`} style={winStyle} />
               <path d={`M${x + w / 2} ${y + 2}V${y + h}M${x} ${y + h * 0.55}H${x + w}`}
                 stroke={CASTLE} strokeWidth="1.6" />
             </g>
           )
         })}
 
-        {/* Rose window */}
-        <circle cx="196" cy="330" r="22" fill="#ffffff" filter="url(#hw-win-blur)" className="hw-window-halo"
-          style={{ animationDelay: '1.3s', animationDuration: '4.5s' }} />
+        {/* Rose window — static halo */}
+        <circle cx="196" cy="330" r="22" fill="#ffffff" className="hw-window-halo" />
         <circle cx="196" cy="330" r="16" fill="url(#hw-win-fill)" className="hw-window"
           style={{ animationDelay: '1.3s', animationDuration: '4.5s' }} />
         <path d="M196 314V346M180 330H212M184.7 318.7L207.3 341.3M207.3 318.7L184.7 341.3"
@@ -472,7 +473,7 @@ const FRONT_TREES = [
 export default function HalloweenScene() {
   const stars = useMemo(() => {
     const r = mulberry32(7)
-    return Array.from({ length: 55 }, () => ({
+    return Array.from({ length: 28 }, () => ({
       top: r() * 55,
       left: r() * 100,
       size: 1 + r() * 1.6,
@@ -501,14 +502,14 @@ export default function HalloweenScene() {
       <svg className="hw-ground" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
         <path fill="#0a0a0c" d={GROUND_PATH} />
       </svg>
-      <Grass seed={71} color="#0d0d10" tufts={170} minH={14} maxH={34} sink={0} />
+      <Grass seed={71} color="#0d0d10" tufts={55} minH={14} maxH={34} sink={0} />
 
       {FRONT_TREES.map(t => (
         <DeadTree key={t.seed} seed={t.seed} crowCount={t.crows} color="#060607"
           className="is-front" style={t.style} />
       ))}
 
-      <Grass seed={93} className="is-front-grass" color="#060607" tufts={110} minH={22} maxH={52} sink={14} />
+      <Grass seed={93} className="is-front-grass" color="#060607" tufts={40} minH={22} maxH={52} sink={14} />
 
       <div className="hw-fog" />
       <div className="hw-fog is-slow" />

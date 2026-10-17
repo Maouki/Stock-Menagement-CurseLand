@@ -13,6 +13,7 @@ import HistoryModal from './components/HistoryModal'
 import FinanceModal from './components/FinanceModal'
 import DashboardModal from './components/DashboardModal'
 import TransferModal from './components/TransferModal'
+import ReceiptImportModal from './components/ReceiptImportModal'
 import Toast from './components/Toast'
 import AlertBanner from './components/AlertBanner'
 import SetupGuide from './components/SetupGuide'
@@ -284,6 +285,57 @@ function MainApp({ currentUser, onLogout }) {
     setModal(null)
   }, [products, showToast])
 
+  const handleReceiptImport = useCallback(async (items) => {
+    const today = new Date().toISOString().split('T')[0]
+    let successCount = 0
+    let errorCount = 0
+
+    for (const item of items) {
+      const name = item.name.trim()
+      const quantity = Math.max(1, Math.round(item.quantity))
+
+      const existing = item.matchedProductId
+        ? products.find(p => p.id === item.matchedProductId)
+        : products.find(p =>
+            (p.branch || 'ปาร์คอิน') === activeBranch &&
+            p.name.toLowerCase() === name.toLowerCase()
+          )
+
+      if (existing) {
+        const { error: shipErr } = await supabase.from('shipments').insert({
+          product_id: existing.id, quantity, shipment_date: today,
+          notes: 'นำเข้าจากใบเสร็จ', type: 'in',
+        })
+        if (shipErr) { errorCount++; continue }
+        const { error: stockErr } = await supabase.from('products')
+          .update({ current_stock: existing.current_stock + quantity })
+          .eq('id', existing.id)
+        if (stockErr) { errorCount++; continue }
+      } else {
+        const { data: inserted, error: insertErr } = await supabase.from('products')
+          .insert({
+            name, branch: activeBranch, current_stock: quantity, min_stock: 10,
+            group_name: activeGroup || groups[0] || 'รายการสินค้า',
+            barcode: '', brand: '', lab: '', lot: '', expiry: null,
+            main_category: '', sub_category: '',
+          })
+          .select('id')
+          .single()
+        if (insertErr) { errorCount++; continue }
+        const { error: shipErr } = await supabase.from('shipments').insert({
+          product_id: inserted.id, quantity, shipment_date: today,
+          notes: 'นำเข้าจากใบเสร็จ', type: 'in',
+        })
+        if (shipErr) errorCount++
+      }
+      successCount++
+    }
+
+    if (successCount > 0) showToast(`นำเข้า ${successCount} รายการเรียบร้อย`, 'success')
+    if (errorCount > 0) showToast(`${errorCount} รายการเกิดข้อผิดพลาด`, 'error')
+    setModal(null)
+  }, [products, activeBranch, activeGroup, groups, showToast])
+
   const handleCategoryChange = useCallback((main, sub) => {
     setActiveMain(main)
     setActiveSub(sub)
@@ -338,6 +390,7 @@ function MainApp({ currentUser, onLogout }) {
           activeBranch={activeBranch}
           onDashboard={() => setModal({ type: 'dashboard' })}
           onFinance={() => setModal({ type: 'finance' })}
+          onReceiptImport={() => setModal({ type: 'receiptImport' })}
           onAdd={() => setModal({
             type: 'add',
             product: {
@@ -429,6 +482,15 @@ function MainApp({ currentUser, onLogout }) {
         <TransferModal
           product={modal.product}
           onSave={handleTransfer}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === 'receiptImport' && (
+        <ReceiptImportModal
+          branch={activeBranch}
+          existingProducts={products.filter(p => (p.branch || 'ปาร์คอิน') === activeBranch)}
+          onImport={handleReceiptImport}
           onClose={() => setModal(null)}
         />
       )}

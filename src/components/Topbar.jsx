@@ -1,6 +1,6 @@
-import { Menu, Search, Plus, LogOut, User, Wallet, BarChart2 } from 'lucide-react'
+import { Menu, Search, Plus, LogOut, User, Wallet, BarChart2, ScanLine } from 'lucide-react'
 
-export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, onFinance, onDashboard, currentUser, onLogout, activeBranch }) {
+export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, onFinance, onDashboard, onReceiptImport, currentUser, onLogout, activeBranch }) {
   return (
     <div className="bg-white border-b border-slate-200 flex-shrink-0 shadow-sm">
       <div className="h-16 flex items-center justify-between px-4 gap-3">
@@ -39,6 +39,14 @@ export default function Topbar({ onToggleSidebar, searchQuery, onSearch, onAdd, 
           >
             <BarChart2 className="w-4 h-4" />
             <span className="hidden sm:inline">แดชบอร์ด</span>
+          </button>
+
+          <button
+            onClick={onReceiptImport}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-sm font-semibold transition-colors border border-amber-200"
+          >
+            <ScanLine className="w-4 h-4" />
+            <span className="hidden sm:inline">นำเข้าใบเสร็จ</span>
           </button>
 
           <button
