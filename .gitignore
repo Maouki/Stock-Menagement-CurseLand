@@ -5,3 +5,7 @@ dist/
 __pycache__/
 *.pyc
 *.pyo
+.env.*
+!.env.example
+.claude/settings.local.json
+*.xlsx

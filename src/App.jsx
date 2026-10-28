@@ -21,10 +21,15 @@ import LoginPage from './components/LoginPage'
 
 // App only decides which top-level view to show — no inventory hooks here.
 export default function App() {
-  const { isLoggedIn, currentUser, login, logout } = useAuth()
+  const { checking, isLoggedIn, currentUser, login, logout } = useAuth()
 
-  if (!isLoggedIn) return <LoginPage onLogin={login} />
   if (!isConfigured) return <SetupGuide />
+  if (checking) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#1A1A1D' }}>
+      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+    </div>
+  )
+  if (!isLoggedIn) return <LoginPage onLogin={login} />
   return <MainApp currentUser={currentUser} onLogout={logout} />
 }
 
