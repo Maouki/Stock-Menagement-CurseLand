@@ -60,7 +60,7 @@ export default function LoginPage({ onLogin }) {
               >
                 Stocks CursedLand
               </h1>
-              <p className="text-slate-400 text-sm mt-1 font-medium">Park-in</p>
+              
             </div>
 
             {/* Form */}
