@@ -14,11 +14,14 @@ export default function LoginPage({ onLogin }) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    await new Promise(r => setTimeout(r, 400))
-    const ok = onLogin(username.trim(), password)
-    if (!ok) {
-      setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
-      setPassword('')
+    try {
+      const err = await onLogin(username.trim(), password)
+      if (err) {
+        setError(err)
+        setPassword('')
+      }
+    } catch {
+      setError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่')
     }
     setLoading(false)
   }
@@ -73,7 +76,7 @@ export default function LoginPage({ onLogin }) {
                   type="text"
                   value={username}
                   onChange={e => { setUsername(e.target.value); setError('') }}
-                  placeholder="admin"
+                  placeholder="ชื่อผู้ใช้"
                   autoComplete="username"
                   autoFocus
                   required
